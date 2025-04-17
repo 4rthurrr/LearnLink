@@ -1,10 +1,15 @@
 ﻿{
-    "version":  "1.0.72",
-    "buildTimestamp":  "2025-04-28T06:40:45.7980000",
+    "version":  "1.0.33",
+    "buildTimestamp":  "2025-04-17T12:27:07.7260000",
     "systemData":  [
                        {
                            "id":  "20250511133731-411d9b81",
                            "date":  "2025-04-28",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511133732-acd2c114",
+                           "date":  "2025-04-17",
                            "type":  "system_update"
                        }
                    ],
@@ -12,7 +17,8 @@
                       "features":  {
                                        "analytics":  false,
                                        "notifications":  true,
-                                       "recommendations":  true
+                                       "recommendations":  true,
+                                       "tutoring":  true
                                    }
                   }
 }
