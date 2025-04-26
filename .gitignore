@@ -1,0 +1,84 @@
+# Backend - Spring Boot
+
+# Compiled files
+backend/target/
+*.class
+
+# Logs
+backend/logs/
+*.log
+log/
+
+# Package files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Application properties containing sensitive data
+backend/src/main/resources/application.properties
+backend/src/main/resources/application-prod.properties
+backend/src/main/resources/application-dev.properties
+backend/src/main/resources/application.yml
+
+# Spring Boot upload directory
+/uploads/
+backend/uploads/
+
+# Frontend - React
+
+# Dependencies
+frontend/node_modules/
+frontend/.pnp
+frontend/.pnp.js
+
+# Testing
+frontend/coverage/
+
+# Production build
+frontend/build/
+frontend/dist/
+
+# Environment variables
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+
+# Package manager logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# IDE - Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+# OS Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Other
+HELP.md
+*.sw?
+*~
+.#*
+.*.md.html
