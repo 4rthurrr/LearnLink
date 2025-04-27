@@ -11,6 +11,7 @@ import com.learnlink.repository.PostRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,6 +29,8 @@ public class PostService {
     private final MediaRepository mediaRepository;
     private final FileStorageService fileStorageService;
     private final UserService userService;
+    private final LikeService likeService;
+    private final CommentService commentService;
 
     @Transactional
     public PostResponse createPost(PostRequest postRequest, List<MultipartFile> files, String currentUserEmail) {
@@ -214,6 +217,20 @@ public class PostService {
                 .profilePicture(post.getAuthor().getProfilePicture())
                 .build();
         
+        // Get likes count
+        long likesCount = likeService.countLikes(post.getId());
+        
+        // Get comments count
+        long commentsCount = commentService.countCommentsByPost(post.getId());
+        
+        // Check if current user liked this post
+        boolean isLikedByCurrentUser = false;
+        try {
+            isLikedByCurrentUser = likeService.hasUserLiked(post.getId(), SecurityContextHolder.getContext().getAuthentication().getName());
+        } catch (Exception e) {
+            // Ignore if user is not authenticated or other issues
+        }
+        
         return PostResponse.builder()
                 .id(post.getId())
                 .title(post.getTitle())
@@ -224,9 +241,9 @@ public class PostService {
                 .learningProgressPercent(post.getLearningProgressPercent())
                 .createdAt(post.getCreatedAt())
                 .updatedAt(post.getUpdatedAt())
-                .likesCount(0) // This will be populated when implementing likes
-                .commentsCount(0) // This will be populated when implementing comments
-                .isLikedByCurrentUser(false) // This will be populated when implementing likes
+                .likesCount((int)likesCount)
+                .commentsCount((int)commentsCount)
+                .isLikedByCurrentUser(isLikedByCurrentUser)
                 .build();
     }
 }
