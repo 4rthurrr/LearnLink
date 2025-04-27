@@ -1,0 +1,18 @@
+package com.learnlink.repository;
+
+import com.learnlink.model.LearningPlan;
+import com.learnlink.model.Topic;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface TopicRepository extends JpaRepository<Topic, Long> {
+    
+    List<Topic> findByLearningPlanOrderByOrderIndexAsc(LearningPlan learningPlan);
+    
+    long countByLearningPlan(LearningPlan learningPlan);
+    
+    long countByLearningPlanAndCompletionStatus(LearningPlan learningPlan, Topic.CompletionStatus completionStatus);
+}
