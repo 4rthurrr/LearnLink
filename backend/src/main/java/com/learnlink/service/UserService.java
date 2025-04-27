@@ -115,4 +115,9 @@ public class UserService {
         return followRepository.findByFollower(user, pageable)
                 .map(Follow::getFollowing);
     }
+
+    public User getUserById(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
 }
