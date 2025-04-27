@@ -1,44 +1,74 @@
 package com.learnlink.service;
 
-import com.learnlink.dto.SignUpRequest;
-import com.learnlink.dto.UserDto;
+import com.learnlink.dto.request.LoginRequest;
+import com.learnlink.dto.request.SignUpRequest;
+import com.learnlink.dto.response.JwtAuthenticationResponse;
 import com.learnlink.exception.BadRequestException;
-import com.learnlink.model.AuthProvider;
 import com.learnlink.model.User;
 import com.learnlink.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.learnlink.security.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.util.HashSet;
 
 @Service
+@RequiredArgsConstructor
 public class AuthService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider tokenProvider;
 
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public JwtAuthenticationResponse authenticateUser(LoginRequest loginRequest) {
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        loginRequest.getEmail(),
+                        loginRequest.getPassword()
+                )
+        );
 
-    public UserDto registerUser(SignUpRequest signUpRequest) {
-        // Check if email is already in use
-        if (userRepository.existsByEmail(signUpRequest.getEmail())) {
-            throw new BadRequestException("Email is already in use");
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String jwt = tokenProvider.generateToken(authentication);
+        
+        return JwtAuthenticationResponse.of(jwt);
+    }
+
+    public JwtAuthenticationResponse registerUser(SignUpRequest signUpRequest) {
+        if(userRepository.existsByEmail(signUpRequest.getEmail())) {
+            throw new BadRequestException("Email address already in use.");
         }
 
-        // Create new user
-        User user = new User();
-        user.setName(signUpRequest.getName());
-        user.setEmail(signUpRequest.getEmail());
-        user.setPassword(passwordEncoder.encode(signUpRequest.getPassword()));
-        user.setProvider(AuthProvider.LOCAL);
-        user.setEmailVerified(false); // Email verification flow could be added later
-        user.setCreatedAt(LocalDateTime.now());
-        user.setUpdatedAt(LocalDateTime.now());
+        // Creating user's account
+        User user = User.builder()
+                .name(signUpRequest.getName())
+                .email(signUpRequest.getEmail())
+                .password(passwordEncoder.encode(signUpRequest.getPassword()))
+                .provider(User.AuthProvider.LOCAL)
+                .enabled(true)
+                .roles(new HashSet<>())
+                .build();
+        
+        user.getRoles().add(User.Role.USER);
 
-        User savedUser = userRepository.save(user);
+        userRepository.save(user);
 
-        return UserDto.fromEntity(savedUser);
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        signUpRequest.getEmail(),
+                        signUpRequest.getPassword()
+                )
+        );
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        String jwt = tokenProvider.generateToken(authentication);
+        
+        return JwtAuthenticationResponse.of(jwt);
     }
 }

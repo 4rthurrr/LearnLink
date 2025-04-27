@@ -1,26 +1,34 @@
 package com.learnlink.controller;
 
-import com.learnlink.dto.ApiResponse;
-import com.learnlink.dto.UserDto;
-import com.learnlink.security.CurrentUser;
-import com.learnlink.security.UserPrincipal;
-import com.learnlink.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.learnlink.dto.request.LoginRequest;
+import com.learnlink.dto.request.SignUpRequest;
+import com.learnlink.dto.response.ApiResponse;
+import com.learnlink.dto.response.JwtAuthenticationResponse;
+import com.learnlink.service.AuthService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/auth")
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
-    @Autowired
-    private UserService userService;
+    private final AuthService authService;
 
+    @PostMapping("/login")
+    public ResponseEntity<JwtAuthenticationResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+        return ResponseEntity.ok(authService.authenticateUser(loginRequest));
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<JwtAuthenticationResponse> registerUser(@Valid @RequestBody SignUpRequest signUpRequest) {
+        return ResponseEntity.ok(authService.registerUser(signUpRequest));
+    }
+    
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(@CurrentUser UserPrincipal userPrincipal) {
-        UserDto userDto = userService.getUserById(userPrincipal.getId());
-        return ResponseEntity.ok(userDto);
+    public ResponseEntity<ApiResponse> checkToken() {
+        return ResponseEntity.ok(new ApiResponse(true, "Token is valid"));
     }
 }
