@@ -22,7 +22,7 @@ public class PostResponse {
     private Date updatedAt;
     private int likesCount;
     private int commentsCount;
-    private boolean isLikedByCurrentUser;
+    private Boolean isLikedByCurrentUser;
     
     @Data
     @Builder

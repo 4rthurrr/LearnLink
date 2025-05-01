@@ -8,9 +8,11 @@ import com.learnlink.model.Post;
 import com.learnlink.model.User;
 import com.learnlink.repository.MediaRepository;
 import com.learnlink.repository.PostRepository;
+import com.learnlink.repository.LikeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,7 @@ public class PostService {
     private final UserService userService;
     private final LikeService likeService;
     private final CommentService commentService;
+    private final LikeRepository likeRepository;
 
     @Transactional
     public PostResponse createPost(PostRequest postRequest, List<MultipartFile> files, String currentUserEmail) {
@@ -99,6 +102,14 @@ public class PostService {
     public Page<PostResponse> getPostsByCategory(Post.Category category, Pageable pageable, User currentUser) {
         return postRepository.findByCategoryOrderByCreatedAtDesc(category, pageable)
                 .map(this::mapToPostResponse);
+    }
+
+    public Page<PostResponse> searchPosts(String query, Pageable pageable, User currentUser) {
+        // Search posts by title or content containing the query string
+        Page<Post> posts = postRepository.findByTitleContainingOrContentContainingOrderByCreatedAtDesc(
+            query, query, pageable);
+        
+        return posts.map(this::mapToPostResponse);
     }
 
     @Transactional
@@ -200,7 +211,27 @@ public class PostService {
         }
     }
     
-    private PostResponse mapToPostResponse(Post post) {
+    public PostResponse mapToPostResponse(Post post) {
+        // Get the current user's email from SecurityContext
+        String currentUserEmail = null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && 
+                !(authentication.getPrincipal() instanceof String)) {
+            try {
+                User currentUser = (User) authentication.getPrincipal();
+                currentUserEmail = currentUser.getEmail();
+            } catch (ClassCastException e) {
+                // Not a User object, probably "anonymousUser"
+            }
+        }
+
+        // Check if current user has liked this post
+        boolean isLikedByCurrentUser = false;
+        if (currentUserEmail != null) {
+            User currentUser = userService.getUserByEmail(currentUserEmail);
+            isLikedByCurrentUser = likeRepository.existsByUserAndPost(currentUser, post);
+        }
+
         List<PostResponse.MediaResponse> mediaResponses = post.getMedia().stream()
                 .map(media -> PostResponse.MediaResponse.builder()
                         .id(media.getId())
@@ -223,14 +254,6 @@ public class PostService {
         // Get comments count
         long commentsCount = commentService.countCommentsByPost(post.getId());
         
-        // Check if current user liked this post
-        boolean isLikedByCurrentUser = false;
-        try {
-            isLikedByCurrentUser = likeService.hasUserLiked(post.getId(), SecurityContextHolder.getContext().getAuthentication().getName());
-        } catch (Exception e) {
-            // Ignore if user is not authenticated or other issues
-        }
-        
         return PostResponse.builder()
                 .id(post.getId())
                 .title(post.getTitle())
@@ -245,5 +268,10 @@ public class PostService {
                 .commentsCount((int)commentsCount)
                 .isLikedByCurrentUser(isLikedByCurrentUser)
                 .build();
+    }
+
+    public Post getPostById(Long postId) {
+        return postRepository.findById(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("Post", "id", postId));
     }
 }

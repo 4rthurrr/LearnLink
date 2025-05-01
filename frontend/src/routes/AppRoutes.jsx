@@ -1,0 +1,41 @@
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import HomePage from '../pages/HomePage';
+import LoginPage from '../pages/LoginPage';
+import ProfilePage from '../pages/ProfilePage';
+import PostDetailPage from '../pages/PostDetailPage';
+import CreatePostPage from '../pages/CreatePostPage';
+import LearningPlanPage from '../pages/LearningPlanPage';
+import CreateLearningPlanPage from '../pages/CreateLearningPlanPage';
+import NotFoundPage from '../pages/NotFoundPage';
+import Layout from '../components/common/Layout';
+import ProtectedRoute from '../components/auth/ProtectedRoute';
+
+const AppRoutes = () => {
+  const { currentUser, loading } = useAuth();
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-screen">Loading...</div>;
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={currentUser ? <Navigate to="/" /> : <LoginPage />} />
+      <Route path="/signup" element={currentUser ? <Navigate to="/" /> : <LoginPage signup={true} />} />
+      
+      <Route path="/" element={<Layout />}>
+        <Route index element={<ProtectedRoute component={HomePage} />} />
+        <Route path="profile/:userId" element={<ProtectedRoute component={ProfilePage} />} />
+        <Route path="post/:postId" element={<ProtectedRoute component={PostDetailPage} />} />
+        <Route path="create-post" element={<ProtectedRoute component={CreatePostPage} />} />
+        <Route path="learning-plan/:planId" element={<ProtectedRoute component={LearningPlanPage} />} />
+        <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
+      </Route>
+      
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+};
+
+export default AppRoutes;
