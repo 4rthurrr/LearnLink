@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { login, signup, getCurrentUser } from '../api/authApi';
 
@@ -10,16 +10,15 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      fetchCurrentUser();
-    } else {
-      setLoading(false);
-    }
-  }, []);
+  // Define logout function first
+  const logout = useCallback(() => {
+    localStorage.removeItem('authToken');
+    setCurrentUser(null);
+    navigate('/login');
+  }, [navigate]);
 
-  const fetchCurrentUser = async () => {
+  // Now we can use logout in fetchCurrentUser
+  const fetchCurrentUser = useCallback(async () => {
     try {
       const userData = await getCurrentUser();
       setCurrentUser(userData);
@@ -29,7 +28,16 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [logout]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      fetchCurrentUser();
+    } else {
+      setLoading(false);
+    }
+  }, [fetchCurrentUser]);
 
   const loginUser = async (email, password) => {
     setLoading(true);
@@ -63,12 +71,6 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('authToken');
-    setCurrentUser(null);
-    navigate('/login');
   };
 
   const value = {

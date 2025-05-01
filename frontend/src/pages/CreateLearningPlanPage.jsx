@@ -7,13 +7,21 @@ import { createLearningPlan } from '../api/learningPlanApi';
 const CreateLearningPlanPage = () => {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
+  // Define validation schema
   const validationSchema = Yup.object({
     title: Yup.string().required('Title is required').min(3, 'Title must be at least 3 characters'),
     description: Yup.string().required('Description is required'),
     category: Yup.string().required('Please select a category'),
     isPublic: Yup.boolean(),
     estimatedDays: Yup.number().positive('Days must be positive').integer('Days must be a whole number').required('Estimated days is required'),
+    startDate: Yup.date().nullable(),
+    targetCompletionDate: Yup.date().nullable()
+      .min(
+        Yup.ref('startDate'), 
+        'Target completion date must be after start date'
+      ),
     topics: Yup.array().of(
       Yup.object({
         title: Yup.string().required('Topic title is required'),
@@ -24,11 +32,33 @@ const CreateLearningPlanPage = () => {
 
   const handleSubmit = async (values) => {
     setIsSubmitting(true);
+    setError('');
     try {
-      const learningPlan = await createLearningPlan(values);
+      // Format the data properly for the API
+      const formattedValues = {
+        title: values.title,
+        description: values.description,
+        category: values.category,
+        isPublic: true,
+        estimatedDays: parseInt(values.estimatedDays),
+        // Include date fields if they have values
+        startDate: values.startDate || null,
+        targetCompletionDate: values.targetCompletionDate || null,
+        topics: values.topics.map((topic, index) => ({
+          title: topic.title,
+          description: topic.description || "",
+          orderIndex: index
+        }))
+      };
+      
+      console.log('Submitting learning plan:', JSON.stringify(formattedValues, null, 2));
+      const learningPlan = await createLearningPlan(formattedValues);
+      
+      // Navigate to the created learning plan
       navigate(`/learning-plan/${learningPlan.id}`);
     } catch (error) {
       console.error('Error creating learning plan:', error);
+      setError(error.response?.data?.message || 'Failed to create learning plan');
     } finally {
       setIsSubmitting(false);
     }
@@ -38,6 +68,16 @@ const CreateLearningPlanPage = () => {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Create Learning Plan</h1>
       
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <Formik
         initialValues={{
           title: '',
@@ -45,6 +85,8 @@ const CreateLearningPlanPage = () => {
           category: '',
           isPublic: true,
           estimatedDays: 30,
+          startDate: '',
+          targetCompletionDate: '',
           topics: [{ title: '', description: '' }]
         }}
         validationSchema={validationSchema}
@@ -120,6 +162,34 @@ const CreateLearningPlanPage = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <Field
+                    type="date"
+                    name="startDate"
+                    id="startDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <ErrorMessage name="startDate" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+                
+                <div>
+                  <label htmlFor="targetCompletionDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Completion Date (Optional)
+                  </label>
+                  <Field
+                    type="date"
+                    name="targetCompletionDate"
+                    id="targetCompletionDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <ErrorMessage name="targetCompletionDate" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+              </div>
+
               <div className="flex items-center">
                 <Field
                   type="checkbox"
@@ -133,13 +203,8 @@ const CreateLearningPlanPage = () => {
               </div>
             </div>
 
-            {/* Topics */}
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-medium">Topics</h2>
-                <ErrorMessage name="topics" component="div" className="text-red-600 text-sm" />
-              </div>
-
+              <h2 className="text-lg font-medium">Topics</h2>
               <FieldArray name="topics">
                 {({ push, remove }) => (
                   <div className="space-y-4">
@@ -151,24 +216,22 @@ const CreateLearningPlanPage = () => {
                             <button
                               type="button"
                               onClick={() => remove(index)}
-                              className="text-red-600 hover:text-red-800"
+                              className="mt-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
                               Remove
                             </button>
                           )}
                         </div>
-
                         <div className="space-y-3">
                           <div>
+                            <label htmlFor={`topics.${index}.title`} className="block text-sm font-medium text-gray-700 mb-1">Topic Title</label>
                             <Field
                               type="text"
                               name={`topics.${index}.title`}
-                              placeholder="Topic title"
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             <ErrorMessage name={`topics.${index}.title`} component="div" className="mt-1 text-red-600 text-sm" />
                           </div>
-
                           <div>
                             <Field
                               as="textarea"
@@ -187,6 +250,9 @@ const CreateLearningPlanPage = () => {
                       onClick={() => push({ title: '', description: '' })}
                       className="mt-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
+                      <svg className="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                      </svg>
                       Add Topic
                     </button>
                   </div>
@@ -197,7 +263,7 @@ const CreateLearningPlanPage = () => {
             <button
               type="submit"
               disabled={isSubmitting || formSubmitting}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
             >
               {isSubmitting || formSubmitting ? 'Creating...' : 'Create Learning Plan'}
             </button>

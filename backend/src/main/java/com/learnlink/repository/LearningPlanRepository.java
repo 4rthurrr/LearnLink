@@ -24,4 +24,6 @@ public interface LearningPlanRepository extends JpaRepository<LearningPlan, Long
     @Query("SELECT lp FROM LearningPlan lp WHERE (lp.isPublic = true OR lp.creator.id = :userId) AND " +
            "(LOWER(lp.title) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(lp.description) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<LearningPlan> searchLearningPlans(@Param("keyword") String keyword, @Param("userId") Long userId, Pageable pageable);
+
+    Page<LearningPlan> findByIsPublicTrue(Pageable pageable);
 }

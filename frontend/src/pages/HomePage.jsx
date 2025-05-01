@@ -1,68 +1,96 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getPosts } from '../api/postApi';
 import { getLearningPlans } from '../api/learningPlanApi';
 import PostCard from '../components/post/PostCard';
-import LearningPlanCard from '../components/learningPlan/LearningPlanCard';
+import LearningPlanList from '../components/learningPlan/LearningPlanList';
 
 const HomePage = () => {
   const { currentUser } = useAuth();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const tabParam = queryParams.get('tab');
+  const refreshParam = queryParams.get('refresh');
+  
   const [posts, setPosts] = useState({ content: [], number: 0, totalPages: 0, last: true });
   const [learningPlans, setLearningPlans] = useState({ content: [], number: 0, totalPages: 0, last: true });
-  const [activeTab, setActiveTab] = useState('posts');
+  const [activeTab, setActiveTab] = useState(tabParam === 'plans' ? 'plans' : 'posts');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [refreshKey, setRefreshKey] = useState(refreshParam || 0);
+
+  // Check URL parameters when they change
+  useEffect(() => {
+    if (tabParam === 'plans') {
+      setActiveTab('plans');
+    }
+    if (refreshParam) {
+      setRefreshKey(refreshParam);
+    }
+  }, [tabParam, refreshParam]);
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (activeTab === 'posts') {
+      fetchPosts(0);
+    } else {
+      fetchLearningPlans(0);
+    }
+  }, [activeTab, refreshKey]);
 
-  const fetchInitialData = async () => {
+  const fetchPosts = async (page) => {
     setLoading(true);
     try {
-      const postsData = await getPosts(0, 5);
-      setPosts(postsData);
-      
-      const plansData = await getLearningPlans(0, 5);
-      setLearningPlans(plansData);
+      console.log(`Fetching posts page ${page}`);
+      const data = await getPosts(page);
+      console.log('Posts data received:', data);
+      setPosts(prevPosts => ({
+        ...data,
+        content: page === 0 ? data.content : [...prevPosts.content, ...data.content]
+      }));
     } catch (error) {
-      console.error('Error fetching data:', error);
-      setError('Failed to load content. Please try again later.');
+      console.error('Error fetching posts:', error);
+      setError('Failed to load posts. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
 
-  const loadMorePosts = async () => {
-    if (posts.last) return;
-    
+  const fetchLearningPlans = async (page) => {
+    setLoading(true);
     try {
-      const nextPage = posts.number + 1;
-      const newData = await getPosts(nextPage, 5);
+      console.log(`Fetching learning plans page ${page}, refreshKey: ${refreshKey}`);
       
-      setPosts(prev => ({
-        ...newData,
-        content: [...prev.content, ...newData.content]
+      // Add cache-busting parameter
+      const data = await getLearningPlans(page, 10, refreshKey);
+      console.log('Learning plans data received:', data);
+      
+      if (!data || !data.content) {
+        console.error('Invalid data format received:', data);
+        throw new Error('Invalid data format received from server');
+      }
+      
+      setLearningPlans(prevPlans => ({
+        ...data,
+        content: page === 0 ? data.content : [...prevPlans.content, ...data.content]
       }));
     } catch (error) {
-      console.error('Error loading more posts:', error);
+      console.error('Error fetching learning plans:', error);
+      setError('Failed to load learning plans. Please try again later.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadMorePlans = async () => {
-    if (learningPlans.last) return;
-    
-    try {
-      const nextPage = learningPlans.number + 1;
-      const newData = await getLearningPlans(nextPage, 5);
-      
-      setLearningPlans(prev => ({
-        ...newData,
-        content: [...prev.content, ...newData.content]
-      }));
-    } catch (error) {
-      console.error('Error loading more learning plans:', error);
+  const loadMorePosts = () => {
+    if (!posts.last) {
+      fetchPosts(posts.number + 1);
+    }
+  };
+
+  const loadMoreLearningPlans = () => {
+    if (!learningPlans.last) {
+      fetchLearningPlans(learningPlans.number + 1);
     }
   };
 
@@ -139,9 +167,9 @@ const HomePage = () => {
         <>
           {/* Posts Tab Content */}
           {activeTab === 'posts' && (
-            <div className="space-y-6">
-              {posts.content.length > 0 ? (
-                <>
+            <div>
+              {posts.content && posts.content.length > 0 ? (
+                <div className="space-y-6">
                   {posts.content.map(post => (
                     <PostCard key={post.id} post={post} />
                   ))}
@@ -156,7 +184,7 @@ const HomePage = () => {
                       </button>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
                 <div className="text-center py-12 bg-white rounded-lg shadow-sm">
                   <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -176,39 +204,11 @@ const HomePage = () => {
 
           {/* Learning Plans Tab Content */}
           {activeTab === 'plans' && (
-            <div className="space-y-6">
-              {learningPlans.content.length > 0 ? (
-                <>
-                  {learningPlans.content.map(plan => (
-                    <LearningPlanCard key={plan.id} learningPlan={plan} />
-                  ))}
-                  
-                  {!learningPlans.last && (
-                    <div className="flex justify-center mt-6">
-                      <button
-                        onClick={loadMorePlans}
-                        className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                      >
-                        Load More
-                      </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">No learning plans yet</h3>
-                  <p className="mt-1 text-sm text-gray-500">Get started by creating a new learning plan.</p>
-                  <div className="mt-6">
-                    <Link to="/create-learning-plan" className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                      Create learning plan
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
+            <LearningPlanList 
+              learningPlans={learningPlans.content} 
+              hasMore={!learningPlans.last} 
+              loadMore={loadMoreLearningPlans} 
+            />
           )}
         </>
       )}

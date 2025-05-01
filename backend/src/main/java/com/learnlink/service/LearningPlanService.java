@@ -4,15 +4,19 @@ import com.learnlink.dto.request.LearningPlanRequest;
 import com.learnlink.dto.request.ResourceRequest;
 import com.learnlink.dto.request.TopicRequest;
 import com.learnlink.dto.response.LearningPlanResponse;
+import com.learnlink.dto.response.TopicResponse;
+import com.learnlink.dto.response.ResourceResponse;
 import com.learnlink.exception.ResourceNotFoundException;
 import com.learnlink.model.LearningPlan;
 import com.learnlink.model.Resource;
 import com.learnlink.model.Topic;
+import com.learnlink.model.Topic.CompletionStatus;
 import com.learnlink.model.User;
 import com.learnlink.repository.LearningPlanRepository;
 import com.learnlink.repository.ResourceRepository;
 import com.learnlink.repository.TopicRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class LearningPlanService {
     
     private final LearningPlanRepository learningPlanRepository;
@@ -33,24 +38,75 @@ public class LearningPlanService {
     
     @Transactional
     public LearningPlanResponse createLearningPlan(LearningPlanRequest learningPlanRequest, String currentUserEmail) {
+        log.info("Creating learning plan: {} with topics: {}", 
+            learningPlanRequest.getTitle(), 
+            learningPlanRequest.getTopics() != null ? learningPlanRequest.getTopics().size() : 0);
+        
         User currentUser = userService.getCurrentUser(currentUserEmail);
         
+        // Create learning plan without topics first
         LearningPlan learningPlan = LearningPlan.builder()
                 .title(learningPlanRequest.getTitle())
                 .description(learningPlanRequest.getDescription())
                 .category(learningPlanRequest.getCategory())
-                .creator(currentUser)
-                .estimatedDays(learningPlanRequest.getEstimatedDays())
                 .isPublic(learningPlanRequest.getIsPublic() != null ? learningPlanRequest.getIsPublic() : true)
+                .estimatedDays(learningPlanRequest.getEstimatedDays())
                 .startDate(learningPlanRequest.getStartDate())
                 .targetCompletionDate(learningPlanRequest.getTargetCompletionDate())
-                .topics(new ArrayList<>())
-                .completionPercentage(0)
+                .creator(currentUser)
+                .topics(new ArrayList<>()) // Initialize with empty list
                 .build();
         
         LearningPlan savedLearningPlan = learningPlanRepository.save(learningPlan);
+        log.info("Saved learning plan with ID: {}", savedLearningPlan.getId());
         
-        return mapToLearningPlanResponse(savedLearningPlan);
+        // Now handle topics if present
+        if (learningPlanRequest.getTopics() != null && !learningPlanRequest.getTopics().isEmpty()) {
+            log.info("Processing {} topics for learning plan", learningPlanRequest.getTopics().size());
+            
+            List<Topic> topics = new ArrayList<>();
+            for (TopicRequest topicRequest : learningPlanRequest.getTopics()) {
+                Topic topic = Topic.builder()
+                        .title(topicRequest.getTitle())
+                        .description(topicRequest.getDescription())
+                        .orderIndex(topicRequest.getOrderIndex() != null ? topicRequest.getOrderIndex() : 0)
+                        .completionStatus(Topic.CompletionStatus.NOT_STARTED)
+                        .learningPlan(savedLearningPlan)
+                        .build();
+                topics.add(topic);
+            }
+            
+            // Save all topics
+            List<Topic> savedTopics = topicRepository.saveAll(topics);
+            log.info("Saved {} topics to database", savedTopics.size());
+            
+            // Update the learning plan with topics
+            savedLearningPlan.setTopics(savedTopics);
+            learningPlanRepository.save(savedLearningPlan);
+        } else {
+            log.warn("No topics provided for learning plan");
+        }
+        
+        // Fetch fresh instance from database to ensure all relationships are loaded
+        LearningPlan finalLearningPlan = learningPlanRepository.findById(savedLearningPlan.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("LearningPlan", "id", savedLearningPlan.getId()));
+        
+        return mapToLearningPlanResponse(finalLearningPlan);
+    }
+    
+    private Topic createTopicFromRequest(TopicRequest topicRequest, LearningPlan learningPlan) {
+        Topic topic = Topic.builder()
+                .title(topicRequest.getTitle())
+                .description(topicRequest.getDescription())
+                .orderIndex(topicRequest.getOrderIndex())
+                .completionStatus(topicRequest.getCompletionStatus() != null ? 
+                                topicRequest.getCompletionStatus() : 
+                                CompletionStatus.NOT_STARTED)
+                .learningPlan(learningPlan)
+                .build();
+        
+        log.debug("Created topic entity: {}", topic.getTitle());
+        return topic;
     }
     
     public LearningPlanResponse getLearningPlanById(Long planId, String currentUserEmail) {
@@ -396,33 +452,54 @@ public class LearningPlanService {
         return mapToLearningPlanResponse(learningPlan);
     }
     
+    /**
+     * Find all public learning plans
+     * 
+     * @param pageable Pagination information
+     * @return Page of public learning plan responses
+     */
+    public Page<LearningPlanResponse> findAllPublicLearningPlans(Pageable pageable) {
+        log.info("Finding all public learning plans with pageable: {}", pageable);
+        
+        Page<LearningPlan> publicLearningPlans = learningPlanRepository.findByIsPublicTrue(pageable);
+        
+        log.info("Found {} public learning plans", publicLearningPlans.getTotalElements());
+        
+        return publicLearningPlans.map(this::mapToLearningPlanResponse);
+    }
+    
     private LearningPlanResponse mapToLearningPlanResponse(LearningPlan learningPlan) {
+        log.debug("Mapping learning plan to response: {}", learningPlan.getId());
+        
+        // Get topics and sort them by orderIndex
         List<LearningPlanResponse.TopicResponse> topicResponses = learningPlan.getTopics().stream()
-                .sorted((t1, t2) -> t1.getOrderIndex().compareTo(t2.getOrderIndex()))
-                .map(topic -> {
-                    List<LearningPlanResponse.ResourceResponse> resourceResponses = topic.getResources().stream()
-                            .map(resource -> LearningPlanResponse.ResourceResponse.builder()
-                                    .id(resource.getId())
-                                    .title(resource.getTitle())
-                                    .description(resource.getDescription())
-                                    .url(resource.getUrl())
-                                    .type(resource.getType())
-                                    .isCompleted(resource.getIsCompleted())
-                                    .build())
-                            .collect(Collectors.toList());
-                    
-                    return LearningPlanResponse.TopicResponse.builder()
-                            .id(topic.getId())
-                            .title(topic.getTitle())
-                            .description(topic.getDescription())
-                            .orderIndex(topic.getOrderIndex())
-                            .completionStatus(topic.getCompletionStatus())
-                            .resources(resourceResponses)
-                            .startDate(topic.getStartDate())
-                            .completionDate(topic.getCompletionDate())
-                            .build();
-                })
-                .collect(Collectors.toList());
+            .sorted((t1, t2) -> t1.getOrderIndex().compareTo(t2.getOrderIndex()))
+            .map(topic -> {
+                List<LearningPlanResponse.ResourceResponse> resourceResponses = topic.getResources().stream()
+                        .map(resource -> LearningPlanResponse.ResourceResponse.builder()
+                                .id(resource.getId())
+                                .title(resource.getTitle())
+                                .description(resource.getDescription())
+                                .url(resource.getUrl())
+                                .type(resource.getType())
+                                .isCompleted(resource.getIsCompleted())
+                                .build())
+                        .collect(Collectors.toList());
+                
+                return LearningPlanResponse.TopicResponse.builder()
+                        .id(topic.getId())
+                        .title(topic.getTitle())
+                        .description(topic.getDescription())
+                        .orderIndex(topic.getOrderIndex())
+                        .completionStatus(topic.getCompletionStatus())
+                        .resources(resourceResponses)
+                        .startDate(topic.getStartDate())
+                        .completionDate(topic.getCompletionDate())
+                        .build();
+            })
+            .collect(Collectors.toList());
+        
+        log.debug("Found {} topics for learning plan {}", topicResponses.size(), learningPlan.getId());
         
         LearningPlanResponse.UserSummaryResponse creatorResponse = LearningPlanResponse.UserSummaryResponse.builder()
                 .id(learningPlan.getCreator().getId())
@@ -444,6 +521,34 @@ public class LearningPlanService {
                 .targetCompletionDate(learningPlan.getTargetCompletionDate())
                 .createdAt(learningPlan.getCreatedAt())
                 .updatedAt(learningPlan.getUpdatedAt())
+                .build();
+    }
+
+    private TopicResponse mapToTopicResponse(Topic topic) {
+        // Add null check for resources
+        List<ResourceResponse> resourceResponses = topic.getResources() == null 
+            ? new ArrayList<>() 
+            : topic.getResources().stream()
+                .map(this::mapToResourceResponse)
+                .collect(Collectors.toList());
+        
+        return TopicResponse.builder()
+                .id(topic.getId())
+                .title(topic.getTitle())
+                .description(topic.getDescription())
+                .completionStatus(topic.getCompletionStatus())
+                .resources(resourceResponses) // Safe list is passed here
+                .build();
+    }
+
+    private ResourceResponse mapToResourceResponse(Resource resource) {
+        return ResourceResponse.builder()
+                .id(resource.getId())
+                .title(resource.getTitle())
+                .description(resource.getDescription())
+                .url(resource.getUrl())
+                .type(resource.getType())
+                .isCompleted(resource.getIsCompleted())
                 .build();
     }
 }
