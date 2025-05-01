@@ -4,9 +4,15 @@ import { toggleLike } from '../../api/postApi';
 import { formatDistanceToNow } from 'date-fns';
 
 const PostCard = ({ post }) => {
-  const [liked, setLiked] = useState(post.isLikedByCurrentUser);
-  const [likesCount, setLikesCount] = useState(post.likesCount || 0);
+  // Move all useState hooks to the top level - no conditionals
+  const [liked, setLiked] = useState(post?.isLikedByCurrentUser || false);
+  const [likesCount, setLikesCount] = useState(post?.likesCount || 0);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Add a check for post being undefined AFTER the hooks
+  if (!post) {
+    return null; // Or return a placeholder/skeleton component
+  }
 
   const handleLike = async () => {
     if (isProcessing) return;

@@ -3,9 +3,14 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
 const LearningPlanCard = ({ learningPlan }) => {
-  const completedTopics = learningPlan.topics?.filter(topic => topic.completionStatus === 'COMPLETED').length || 0;
-  const totalTopics = learningPlan.topics?.length || 0;
-  const progress = learningPlan.completionPercentage || (totalTopics > 0 ? (completedTopics / totalTopics) * 100 : 0);
+  console.log("Rendering plan:", learningPlan); // Add this for debugging
+  console.log("Rendering plan with topics:", learningPlan.topics);
+
+  // Safe access to properties with better logging
+  const topics = learningPlan.topics || [];
+  const completedTopics = topics.filter(topic => topic?.completionStatus === 'COMPLETED')?.length || 0;
+  const totalTopics = topics.length || 0;
+  const progress = learningPlan.completionPercentage || 0;
 
   const formatDate = (dateString) => {
     try {
@@ -20,16 +25,16 @@ const LearningPlanCard = ({ learningPlan }) => {
       {/* Card header */}
       <div className="p-5 pb-3 border-b border-gray-100">
         <div className="flex items-center">
-          <Link to={`/profile/${learningPlan.creator.id}`} className="flex-shrink-0">
+          <Link to={`/profile/${learningPlan.creator?.id || 0}`} className="flex-shrink-0">
             <img 
               className="h-10 w-10 rounded-full" 
-              src={learningPlan.creator.profilePicture || "https://via.placeholder.com/150"} 
-              alt={learningPlan.creator.name} 
+              src={learningPlan.creator?.profilePicture || "https://via.placeholder.com/150"} 
+              alt={learningPlan.creator?.name || "User"} 
             />
           </Link>
           <div className="ml-3">
-            <Link to={`/profile/${learningPlan.creator.id}`} className="text-sm font-medium text-gray-900 hover:underline">
-              {learningPlan.creator.name}
+            <Link to={`/profile/${learningPlan.creator?.id || 0}`} className="text-sm font-medium text-gray-900 hover:underline">
+              {learningPlan.creator?.name || "Anonymous User"}
             </Link>
             <p className="text-xs text-gray-500">
               Created {formatDate(learningPlan.createdAt)}
@@ -72,7 +77,7 @@ const LearningPlanCard = ({ learningPlan }) => {
           <div>
             <p className="text-sm text-gray-500">Estimated Duration</p>
             <p className="text-sm font-medium text-gray-900">
-              {learningPlan.estimatedDays} days
+              {learningPlan.estimatedDays || 0} days
             </p>
           </div>
           <div>
@@ -88,6 +93,25 @@ const LearningPlanCard = ({ learningPlan }) => {
             </span>
           </div>
         </div>
+
+        {/* Display topics count */}
+        <div className="mt-4 text-sm text-gray-600">
+          <div className="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mr-1" viewBox="0 0 20 20" fill="currentColor">
+              <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+            </svg>
+            <span>
+              {totalTopics} {totalTopics === 1 ? 'topic' : 'topics'}
+            </span>
+          </div>
+        </div>
+
+        {/* Display topics list */}
+        {topics && topics.length > 0 && (
+          <div className="mt-2 text-sm text-gray-600">
+            <strong>Topics:</strong> {topics.map(topic => topic.title).join(', ')}
+          </div>
+        )}
 
         {/* View details link */}
         <div className="mt-5 text-right">

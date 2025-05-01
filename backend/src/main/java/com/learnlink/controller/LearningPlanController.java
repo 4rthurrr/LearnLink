@@ -13,9 +13,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Sort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/learning-plans")
@@ -23,14 +27,24 @@ import org.springframework.web.bind.annotation.*;
 public class LearningPlanController {
     
     private final LearningPlanService learningPlanService;
+    private static final Logger log = LoggerFactory.getLogger(LearningPlanController.class);
     
     @PostMapping
     public ResponseEntity<LearningPlanResponse> createLearningPlan(
             @Valid @RequestBody LearningPlanRequest learningPlanRequest,
             @AuthenticationPrincipal User currentUser) {
         
-        LearningPlanResponse response = learningPlanService.createLearningPlan(learningPlanRequest, currentUser.getEmail());
-        return ResponseEntity.ok(response);
+        // Add logging
+        log.info("Creating learning plan: {}, isPublic: {}", 
+                 learningPlanRequest.getTitle(), learningPlanRequest.getIsPublic());
+        
+        LearningPlanResponse learningPlan = learningPlanService.createLearningPlan(
+                learningPlanRequest, currentUser.getEmail());
+        
+        // Log the created plan
+        log.info("Learning plan created with ID: {}", learningPlan.getId());
+        
+        return ResponseEntity.status(HttpStatus.CREATED).body(learningPlan);
     }
     
     @GetMapping("/{planId}")
@@ -53,12 +67,20 @@ public class LearningPlanController {
     }
     
     @GetMapping("/public")
-    public ResponseEntity<Page<LearningPlanResponse>> getPublicLearningPlans(
-            @PageableDefault(size = 10) Pageable pageable,
+    public ResponseEntity<Page<LearningPlanResponse>> getAllPublicLearningPlans(
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @AuthenticationPrincipal User currentUser) {
         
-        Page<LearningPlanResponse> response = learningPlanService.getPublicLearningPlans(pageable, currentUser.getEmail());
-        return ResponseEntity.ok(response);
+        // Add logging to debug
+        log.info("Fetching public learning plans, page: {}, size: {}", 
+                 pageable.getPageNumber(), pageable.getPageSize());
+        
+        Page<LearningPlanResponse> learningPlans = learningPlanService.findAllPublicLearningPlans(pageable);
+        
+        // Log the results
+        log.info("Found {} public learning plans", learningPlans.getTotalElements());
+        
+        return ResponseEntity.ok(learningPlans);
     }
     
     @GetMapping("/search")

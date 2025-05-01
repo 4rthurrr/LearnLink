@@ -39,6 +39,7 @@ public class Topic {
     private CompletionStatus completionStatus;
     
     @OneToMany(mappedBy = "topic", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default // This annotation ensures the list is initialized even when using Builder
     private List<Resource> resources = new ArrayList<>();
     
     @Temporal(TemporalType.TIMESTAMP)

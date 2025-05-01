@@ -1,10 +1,11 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
+// import { useAuth } from '../contexts/AuthContext';
 
 const ProfilePage = () => {
   const { userId } = useParams();
-  const { currentUser } = useAuth();
+  // Remove unused variable
+  // const { currentUser } = useAuth();
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
