@@ -24,6 +24,11 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
     }
 
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    }
+
     public UserProfileResponse getUserProfile(Long userId, User currentUser) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
@@ -119,5 +124,30 @@ public class UserService {
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    public Page<UserProfileResponse> searchUsers(String query, Pageable pageable) {
+        // Search users by name or email containing the query string
+        String searchTerm = "%" + query.toLowerCase() + "%";
+        
+        Page<User> users = userRepository.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
+            query, query, pageable);
+        
+        return users.map(user -> {
+            long followersCount = followRepository.countByFollowing(user);
+            long followingCount = followRepository.countByFollower(user);
+            
+            return UserProfileResponse.builder()
+                    .id(user.getId())
+                    .name(user.getName())
+                    .email(user.getEmail())
+                    .profilePicture(user.getProfilePicture())
+                    .bio(user.getBio())
+                    .location(user.getLocation())
+                    .joinedDate(user.getJoinedDate())
+                    .followersCount(followersCount)
+                    .followingCount(followingCount)
+                    .build();
+        });
     }
 }

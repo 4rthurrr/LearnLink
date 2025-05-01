@@ -47,14 +47,20 @@ public class LikeService {
             
             // Create notification for post author (if not the same user)
             if (!post.getAuthor().getId().equals(currentUser.getId())) {
-                notificationService.createNotification(
-                        post.getAuthor(),
-                        currentUser,
-                        Notification.NotificationType.LIKE,
-                        currentUser.getName() + " liked your post",
-                        "post",
-                        post.getId()
-                );
+                try {
+                    // Fix: Use the enum value instead of a string
+                    notificationService.createNotification(
+                            post.getAuthor(),
+                            currentUser,
+                            Notification.NotificationType.LIKE,
+                            currentUser.getName() + " liked your post",
+                            "post",
+                            post.getId()
+                    );
+                } catch (Exception e) {
+                    // Log error but don't fail the like operation
+                    System.err.println("Failed to create notification: " + e.getMessage());
+                }
             }
             
             return true;

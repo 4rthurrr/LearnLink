@@ -9,7 +9,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -19,14 +21,20 @@ public class LikeController {
     private final LikeService likeService;
     
     @PostMapping("/{postId}/like")
-    public ResponseEntity<ApiResponse> toggleLike(
+    public ResponseEntity<Map<String, Object>> toggleLike(
             @PathVariable Long postId,
             @AuthenticationPrincipal User currentUser) {
         
         boolean isLiked = likeService.toggleLike(postId, currentUser.getEmail());
-        String message = isLiked ? "Post liked successfully" : "Post unliked successfully";
+        long likesCount = likeService.countLikes(postId);
         
-        return ResponseEntity.ok(new ApiResponse(true, message));
+        Map<String, Object> response = new HashMap<>();
+        response.put("success", true);
+        response.put("liked", isLiked);
+        response.put("likesCount", likesCount);
+        response.put("message", isLiked ? "Post liked successfully" : "Post unliked successfully");
+        
+        return ResponseEntity.ok(response);
     }
     
     @GetMapping("/{postId}/likes/count")
@@ -42,8 +50,8 @@ public class LikeController {
     @GetMapping("/{postId}/likes/me")
     public ResponseEntity<Boolean> hasUserLiked(
             @PathVariable Long postId,
-            @AuthenticationPrincipal User currentUser) {
+            @AuthenticationPrincipal String currentUserEmail) {
         
-        return ResponseEntity.ok(likeService.hasUserLiked(postId, currentUser.getEmail()));
+        return ResponseEntity.ok(likeService.hasUserLiked(postId, currentUserEmail));
     }
 }
