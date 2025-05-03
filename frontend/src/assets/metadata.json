@@ -1,104 +1,9 @@
 ﻿{
-    "version":  "1.0.66",
-    "buildTimestamp":  "2025-05-03T06:10:19.0280000",
+    "version":  "1.0.4",
+    "buildTimestamp":  "2025-05-03T02:17:25.9930000",
     "systemData":  [
                        {
-                           "id":  "20250511140439-d890b60a",
-                           "date":  "2025-04-26",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140439-edf94cf2",
-                           "date":  "2025-04-16",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140440-525718c7",
-                           "date":  "2025-05-10",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140441-3f4fe14d",
-                           "date":  "2025-04-25",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140441-a83e89f2",
-                           "date":  "2025-05-07",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140442-aa4cc37d",
-                           "date":  "2025-04-19",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140442-d0125e8b",
-                           "date":  "2025-05-04",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140443-d15f82dd",
-                           "date":  "2025-05-07",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140443-96c7bdba",
-                           "date":  "2025-05-07",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140444-289b1373",
-                           "date":  "2025-05-05",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140519-3e21c186",
-                           "date":  "2025-04-19",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140519-350f71b0",
-                           "date":  "2025-05-09",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140520-69b07701",
-                           "date":  "2025-04-20",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140521-7f297488",
-                           "date":  "2025-04-27",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140522-8b28d7bf",
-                           "date":  "2025-04-21",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140522-0f06d198",
-                           "date":  "2025-05-05",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140523-e9634c55",
-                           "date":  "2025-04-25",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140524-2e690423",
-                           "date":  "2025-05-04",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140524-9330a218",
-                           "date":  "2025-05-06",
-                           "type":  "system_update"
-                       },
-                       {
-                           "id":  "20250511140525-714df6bd",
+                           "id":  "20250511140808-0a5e2d7d",
                            "date":  "2025-05-03",
                            "type":  "system_update"
                        }
@@ -106,11 +11,9 @@
     "appConfig":  {
                       "features":  {
                                        "analytics":  true,
-                                       "notifications":  false,
-                                       "recommendations":  false,
-                                       "tutoring":  true,
-                                       "messaging":  true,
-                                       "feedback":  false
+                                       "notifications":  true,
+                                       "recommendations":  true,
+                                       "darkMode":  true
                                    }
                   }
 }
