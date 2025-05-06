@@ -150,4 +150,19 @@ public class UserService {
                     .build();
         });
     }
+
+    /**
+     * Check if a user is following another user
+     * 
+     * @param userId ID of the user being followed
+     * @param currentUserEmail Email of the current user who might be following
+     * @return true if the current user is following the user with the given ID
+     */
+    public boolean checkIfUserIsFollowing(Long userId, String currentUserEmail) {
+        User currentUser = getCurrentUser(currentUserEmail);
+        User targetUser = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        return followRepository.existsByFollowerAndFollowing(currentUser, targetUser);
+    }
 }
