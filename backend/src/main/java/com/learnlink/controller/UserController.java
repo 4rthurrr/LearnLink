@@ -11,6 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
@@ -62,5 +65,15 @@ public class UserController {
             @PathVariable Long userId,
             Pageable pageable) {
         return ResponseEntity.ok(userService.getFollowing(userId, pageable));
+    }
+
+    @GetMapping("/{userId}/follow/status")
+    public ResponseEntity<Map<String, Boolean>> checkFollowStatus(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal User currentUser) {
+        boolean isFollowing = userService.checkIfUserIsFollowing(userId, currentUser.getEmail());
+        Map<String, Boolean> response = new HashMap<>();
+        response.put("isFollowing", isFollowing);
+        return ResponseEntity.ok(response);
     }
 }

@@ -56,6 +56,9 @@ public class User implements UserDetails {
     @Column(name = "is_enabled")
     private boolean enabled = true;
     
+    @Column(name = "active")
+    private boolean active = true;
+    
     @ElementCollection(fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
     private Set<Role> roles = new HashSet<>();
@@ -63,6 +66,7 @@ public class User implements UserDetails {
     @PrePersist
     protected void onCreate() {
         joinedDate = new Date();
+        active = true;
     }
     
     @Override

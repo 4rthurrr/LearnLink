@@ -52,6 +52,7 @@ public class AuthService {
                 .password(passwordEncoder.encode(signUpRequest.getPassword()))
                 .provider(User.AuthProvider.LOCAL)
                 .enabled(true)
+                .active(true) // Explicitly setting active field to true
                 .roles(new HashSet<>())
                 .build();
         

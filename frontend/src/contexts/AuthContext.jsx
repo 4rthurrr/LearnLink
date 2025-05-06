@@ -21,7 +21,21 @@ export const AuthProvider = ({ children }) => {
   const fetchCurrentUser = useCallback(async () => {
     try {
       const userData = await getCurrentUser();
-      setCurrentUser(userData);
+      
+      // Check if userData is valid and contains user details
+      if (userData && userData.id) {
+        console.log('Successfully fetched current user:', userData);
+        setCurrentUser(userData);
+      } else if (userData && userData.success === true) {
+        // Token is valid but we didn't get user details - this is an error
+        console.error('Auth response validates token but is missing user details:', userData);
+        // Force user to re-login to get proper user data
+        logout();
+      } else {
+        // Invalid response
+        console.error('Invalid user data received:', userData);
+        logout();
+      }
     } catch (error) {
       console.error('Error fetching current user:', error);
       logout();
@@ -73,13 +87,43 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Function to refresh user data from server
+  const refreshCurrentUser = async () => {
+    try {
+      console.log('Refreshing current user data');
+      await fetchCurrentUser();
+      return true;
+    } catch (error) {
+      console.error('Error refreshing user data:', error);
+      return false;
+    }
+  };
+
+  // Function to update followed/following status in the currentUser object
+  const updateFollowStatus = (targetUserId, isFollowing) => {
+    if (!currentUser) return;
+    
+    // Update following count of the current user
+    setCurrentUser(prevUser => ({
+      ...prevUser,
+      followingCount: isFollowing 
+        ? prevUser.followingCount + 1 
+        : Math.max(0, prevUser.followingCount - 1)
+    }));
+    
+    console.log(`Updated currentUser following count after ${isFollowing ? 'following' : 'unfollowing'} user ${targetUserId}`);
+  };
+
   const value = {
     currentUser,
+    setCurrentUser,
     loading,
     error,
     loginUser,
     registerUser,
     logout,
+    refreshCurrentUser,
+    updateFollowStatus
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

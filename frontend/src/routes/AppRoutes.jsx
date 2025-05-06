@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import ProfilePage from '../pages/ProfilePage';
+import ProfileEditPage from '../pages/ProfileEditPage';
 import PostDetailPage from '../pages/PostDetailPage';
 import CreatePostPage from '../pages/CreatePostPage';
 import LearningPlanPage from '../pages/LearningPlanPage';
@@ -26,6 +27,7 @@ const AppRoutes = () => {
       
       <Route path="/" element={<Layout />}>
         <Route index element={<ProtectedRoute component={HomePage} />} />
+        <Route path="profile/edit" element={<ProtectedRoute component={ProfileEditPage} />} />
         <Route path="profile/:userId" element={<ProtectedRoute component={ProfilePage} />} />
         <Route path="post/:postId" element={<ProtectedRoute component={PostDetailPage} />} />
         <Route path="create-post" element={<ProtectedRoute component={CreatePostPage} />} />

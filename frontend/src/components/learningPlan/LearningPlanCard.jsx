@@ -3,11 +3,18 @@ import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 
 const LearningPlanCard = ({ learningPlan }) => {
-  console.log("Rendering plan:", learningPlan); // Add this for debugging
-  console.log("Rendering plan with topics:", learningPlan.topics);
+  // Check if learningPlan exists before rendering
+  if (!learningPlan) {
+    console.error("LearningPlanCard received undefined or null learningPlan prop");
+    return (
+      <div className="bg-white shadow rounded-lg overflow-hidden mb-6 p-5">
+        <p className="text-gray-500">Learning plan data unavailable</p>
+      </div>
+    );
+  }
 
-  // Safe access to properties with better logging
-  const topics = learningPlan.topics || [];
+  // Safely access properties with optional chaining
+  const topics = learningPlan?.topics || [];
   const completedTopics = topics.filter(topic => topic?.completionStatus === 'COMPLETED')?.length || 0;
   const totalTopics = topics.length || 0;
   const progress = learningPlan.completionPercentage || 0;
