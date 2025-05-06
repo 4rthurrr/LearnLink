@@ -9,6 +9,8 @@ import PostDetailPage from '../pages/PostDetailPage';
 import CreatePostPage from '../pages/CreatePostPage';
 import LearningPlanPage from '../pages/LearningPlanPage';
 import CreateLearningPlanPage from '../pages/CreateLearningPlanPage';
+import NotificationsPage from '../pages/NotificationsPage';
+import AnalyticsDashboardPage from '../pages/AnalyticsDashboardPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import Layout from '../components/common/Layout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -33,6 +35,8 @@ const AppRoutes = () => {
         <Route path="create-post" element={<ProtectedRoute component={CreatePostPage} />} />
         <Route path="learning-plan/:planId" element={<ProtectedRoute component={LearningPlanPage} />} />
         <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
+        <Route path="notifications" element={<ProtectedRoute component={NotificationsPage} />} />
+        <Route path="analytics" element={<ProtectedRoute component={AnalyticsDashboardPage} />} />
       </Route>
       
       <Route path="*" element={<NotFoundPage />} />
