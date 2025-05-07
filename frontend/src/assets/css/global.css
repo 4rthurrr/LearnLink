@@ -13,3 +13,18 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* Add global styles here */
+
+/* Default avatar can be used via CSS background */
+.default-avatar {
+  background-color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.default-avatar::after {
+  content: '👤';
+  font-size: 2rem;
+}
