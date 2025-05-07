@@ -48,6 +48,14 @@ public class FileStorageService {
             throw new FileStorageException("Could not store file " + filename, ex);
         }
     }
+    
+    public String storeResourceFile(MultipartFile file) {
+        // Store the file and get the filename
+        String filename = storeFile(file);
+        
+        // For resources, return a URL that can be used to access the file
+        return "/api/files/" + filename;
+    }
 
     public Resource loadFileAsResource(String fileName) {
         try {
@@ -70,5 +78,10 @@ public class FileStorageService {
         } catch (IOException ex) {
             throw new FileStorageException("Could not delete file " + fileName, ex);
         }
+    }
+    
+    // Get the file storage location for debugging purposes
+    public Path getFileStorageLocation() {
+        return this.fileStorageLocation;
     }
 }

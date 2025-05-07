@@ -15,20 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class UserService {
-
+    
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
-
-    public User getCurrentUser(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
-    }
-
-    public User getUserByEmail(String email) {
-        return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
-    }
-
+    
     public UserProfileResponse getUserProfile(Long userId, User currentUser) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
@@ -54,7 +44,17 @@ public class UserService {
                 .isCurrentUserFollowing(isCurrentUserFollowing)
                 .build();
     }
-
+    
+    public User getCurrentUser(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    }
+    
+    public User getUserByEmail(String email) {
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+    }
+    
     public User updateProfile(Long userId, User userDetails, String currentUserEmail) {
         User currentUser = getCurrentUser(currentUserEmail);
         
@@ -71,13 +71,26 @@ public class UserService {
         
         return userRepository.save(currentUser);
     }
-
+    
+    @Transactional
+    public User updateProfilePicture(Long userId, String profilePictureUrl, String currentUserEmail) {
+        User currentUser = getCurrentUser(currentUserEmail);
+        
+        if (!currentUser.getId().equals(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+        
+        currentUser.setProfilePicture(profilePictureUrl);
+        return userRepository.save(currentUser);
+    }
+    
     @Transactional
     public void followUser(Long userId, String currentUserEmail) {
         User currentUser = getCurrentUser(currentUserEmail);
         User userToFollow = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         
+        // Check if already following
         if (currentUser.getId().equals(userId)) {
             throw new IllegalArgumentException("You cannot follow yourself");
         }
@@ -86,13 +99,14 @@ public class UserService {
             throw new IllegalArgumentException("You are already following this user");
         }
         
-        Follow follow = new Follow();
-        follow.setFollower(currentUser);
-        follow.setFollowing(userToFollow);
+        Follow follow = Follow.builder()
+                .follower(currentUser)
+                .following(userToFollow)
+                .build();
         
         followRepository.save(follow);
     }
-
+    
     @Transactional
     public void unfollowUser(Long userId, String currentUserEmail) {
         User currentUser = getCurrentUser(currentUserEmail);
@@ -100,32 +114,40 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         
         Follow follow = followRepository.findByFollowerAndFollowing(currentUser, userToUnfollow)
-                .orElseThrow(() -> new IllegalArgumentException("You are not following this user"));
+                .orElseThrow(() -> new ResourceNotFoundException("Follow", "relationship", userId));
         
         followRepository.delete(follow);
     }
-
+    
+    public boolean checkIfUserIsFollowing(Long userId, String currentUserEmail) {
+        User currentUser = getCurrentUser(currentUserEmail);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        return followRepository.existsByFollowerAndFollowing(currentUser, user);
+    }
+    
     public Page<User> getFollowers(Long userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         
-        return followRepository.findByFollowing(user, pageable)
+        return followRepository.findFollowersByFollowing(user, pageable)
                 .map(Follow::getFollower);
     }
-
+    
     public Page<User> getFollowing(Long userId, Pageable pageable) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         
-        return followRepository.findByFollower(user, pageable)
+        return followRepository.findFollowingByFollower(user, pageable)
                 .map(Follow::getFollowing);
     }
-
+    
     public User getUserById(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
     }
-
+    
     public Page<UserProfileResponse> searchUsers(String query, Pageable pageable) {
         // Search users by name or email containing the query string
         String searchTerm = "%" + query.toLowerCase() + "%";
@@ -149,20 +171,5 @@ public class UserService {
                     .followingCount(followingCount)
                     .build();
         });
-    }
-
-    /**
-     * Check if a user is following another user
-     * 
-     * @param userId ID of the user being followed
-     * @param currentUserEmail Email of the current user who might be following
-     * @return true if the current user is following the user with the given ID
-     */
-    public boolean checkIfUserIsFollowing(Long userId, String currentUserEmail) {
-        User currentUser = getCurrentUser(currentUserEmail);
-        User targetUser = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        
-        return followRepository.existsByFollowerAndFollowing(currentUser, targetUser);
     }
 }

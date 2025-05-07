@@ -120,3 +120,17 @@ export const addResource = async (planId, topicId, resourceData) => {
   const response = await apiClient.post(`/api/learning-plans/${planId}/topics/${topicId}/resources`, resourceData);
   return response.data;
 };
+
+export const uploadResourceFile = async (planId, topicId, formData, resourceId) => {
+  // If resourceId is provided, add it to the formData
+  if (resourceId) {
+    formData.append('resourceId', resourceId);
+  }
+  
+  const response = await apiClient.post(`/api/learning-plans/${planId}/topics/${topicId}/resources/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};

@@ -45,6 +45,7 @@ public class SecurityConfig {
             )
             .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/auth/**", "/oauth2/**").permitAll()
+                .requestMatchers("/api/media/**").permitAll() // Allow media access without authentication
                 .requestMatchers("/api/debug/**").permitAll() // Allow debug endpoints
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()

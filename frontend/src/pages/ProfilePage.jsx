@@ -9,6 +9,7 @@ import {
   unfollowUser,
   checkFollowStatus 
 } from '../api/userApi';
+import { deleteLearningPlan } from '../api/learningPlanApi';
 import PostCard from '../components/post/PostCard';
 import LearningPlanCard from '../components/learningPlan/LearningPlanCard';
 import FollowsModal from '../components/user/FollowsModal';
@@ -288,6 +289,37 @@ const ProfilePage = () => {
     }
   };
 
+  const handleDeleteLearningPlan = async (planId) => {
+    try {
+      // Set loading state
+      setLearningPlans(prev => ({
+        ...prev,
+        loading: true
+      }));
+      
+      // Call the API to delete the learning plan
+      await deleteLearningPlan(planId);
+      
+      // Remove the deleted plan from the state
+      setLearningPlans(prev => ({
+        ...prev,
+        content: prev.content.filter(plan => plan.id !== planId),
+        loading: false
+      }));
+      
+      // Show success message
+      alert('Learning plan deleted successfully');
+      
+    } catch (err) {
+      console.error('Error deleting learning plan:', err);
+      setError('Failed to delete learning plan');
+      setLearningPlans(prev => ({
+        ...prev,
+        loading: false
+      }));
+    }
+  };
+
   const openFollowsModal = (type) => {
     setFollowsModal({
       isOpen: true,
@@ -549,7 +581,11 @@ const ProfilePage = () => {
               <div>
                 <div className="grid gap-6 md:grid-cols-2">
                   {learningPlans.content.map(plan => (
-                    <LearningPlanCard key={plan.id} plan={plan} />
+                    <LearningPlanCard 
+                      key={plan.id} 
+                      learningPlan={plan} 
+                      onDelete={handleDeleteLearningPlan}
+                    />
                   ))}
                 </div>
                 {hasMorePlans && (
