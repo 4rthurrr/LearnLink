@@ -5,8 +5,10 @@ import com.learnlink.dto.request.ResourceRequest;
 import com.learnlink.dto.request.TopicRequest;
 import com.learnlink.dto.response.ApiResponse;
 import com.learnlink.dto.response.LearningPlanResponse;
+import com.learnlink.dto.response.ResourceFileResponse;
 import com.learnlink.model.Topic;
 import com.learnlink.model.User;
+import com.learnlink.service.FileStorageService;
 import com.learnlink.service.LearningPlanService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,12 +16,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Sort;
+import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 @RestController
 @RequestMapping("/api/learning-plans")
@@ -27,6 +33,7 @@ import org.slf4j.LoggerFactory;
 public class LearningPlanController {
     
     private final LearningPlanService learningPlanService;
+    private final FileStorageService fileStorageService;
     private static final Logger log = LoggerFactory.getLogger(LearningPlanController.class);
     
     @PostMapping
@@ -198,5 +205,32 @@ public class LearningPlanController {
         
         LearningPlanResponse response = learningPlanService.updateResourceCompletionStatus(planId, topicId, resourceId, isCompleted, currentUser.getEmail());
         return ResponseEntity.ok(response);
+    }
+    
+    @PostMapping(value = "/{planId}/topics/{topicId}/resources/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResourceFileResponse> uploadResourceFile(
+            @PathVariable Long planId,
+            @PathVariable Long topicId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("resourceId") Long resourceId,
+            @AuthenticationPrincipal User currentUser) throws IOException {
+        
+        log.info("Uploading resource file for plan: {}, topic: {}, resource: {}", 
+                 planId, topicId, resourceId);
+        
+        // Validate file type
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.equals("application/pdf")) {
+            return ResponseEntity.badRequest().body(
+                new ResourceFileResponse(false, null, "Only PDF files are allowed"));
+        }
+        
+        // Store the file
+        String fileUrl = fileStorageService.storeResourceFile(file);
+        
+        // Update the resource URL
+        learningPlanService.updateResourceFileUrl(planId, topicId, resourceId, fileUrl, currentUser.getEmail());
+        
+        return ResponseEntity.ok(new ResourceFileResponse(true, fileUrl, "File uploaded successfully"));
     }
 }

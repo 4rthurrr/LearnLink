@@ -1,13 +1,80 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
-import { createLearningPlan } from '../api/learningPlanApi';
+import { createLearningPlan, getLearningPlanById, updateLearningPlan, uploadResourceFile } from '../api/learningPlanApi';
+import { useAuth } from '../contexts/AuthContext';
 
 const CreateLearningPlanPage = () => {
   const navigate = useNavigate();
+  const { planId } = useParams();
+  const { currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [initialValues, setInitialValues] = useState({
+    title: '',
+    description: '',
+    category: '',
+    isPublic: true,
+    estimatedDays: 30,
+    startDate: '',
+    targetCompletionDate: '',
+    topics: [{ title: '', description: '', resources: [] }]
+  });
+  const [isLoading, setIsLoading] = useState(!!planId);
+  const isEditMode = !!planId;
+  const [fileResources, setFileResources] = useState({});  // To track file resources that need to be uploaded
+
+  // Fetch learning plan data if in edit mode
+  useEffect(() => {
+    const fetchLearningPlan = async () => {
+      if (planId) {
+        try {
+          setIsLoading(true);
+          const planData = await getLearningPlanById(planId);
+          
+          // Check if the current user is the creator of the plan
+          if (currentUser.id !== planData.creator?.id) {
+            setError("You don't have permission to edit this learning plan");
+            return;
+          }
+          
+          // Format dates for form fields (YYYY-MM-DD)
+          const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toISOString().split('T')[0];
+          };
+          
+          setInitialValues({
+            title: planData.title || '',
+            description: planData.description || '',
+            category: planData.category || '',
+            isPublic: planData.isPublic !== undefined ? planData.isPublic : true,
+            estimatedDays: planData.estimatedDays || 30,
+            startDate: formatDate(planData.startDate),
+            targetCompletionDate: formatDate(planData.targetCompletionDate),
+            topics: planData.topics && planData.topics.length > 0 
+              ? planData.topics.map(topic => ({
+                  id: topic.id,
+                  title: topic.title || '',
+                  description: topic.description || '',
+                  resources: topic.resources || []
+                }))
+              : [{ title: '', description: '', resources: [] }]
+          });
+        } catch (err) {
+          console.error('Error fetching learning plan:', err);
+          setError('Failed to load learning plan data');
+          navigate('/profile');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchLearningPlan();
+  }, [planId, currentUser, navigate]);
 
   // Define validation schema
   const validationSchema = Yup.object({
@@ -25,7 +92,20 @@ const CreateLearningPlanPage = () => {
     topics: Yup.array().of(
       Yup.object({
         title: Yup.string().required('Topic title is required'),
-        description: Yup.string()
+        description: Yup.string(),
+        resources: Yup.array().of(
+          Yup.object({
+            title: Yup.string().required('Resource title is required'),
+            url: Yup.string().when('resourceType', {
+              is: 'url',
+              then: () => Yup.string().required('Resource URL is required').url('Must be a valid URL'),
+              otherwise: () => Yup.string().nullable()
+            }),
+            type: Yup.string().required('Resource type is required'),
+            description: Yup.string(),
+            resourceType: Yup.string().oneOf(['url', 'file'])
+          })
+        )
       })
     ).min(1, 'At least one topic is required')
   });
@@ -39,34 +119,95 @@ const CreateLearningPlanPage = () => {
         title: values.title,
         description: values.description,
         category: values.category,
-        isPublic: true,
+        isPublic: values.isPublic,
         estimatedDays: parseInt(values.estimatedDays),
         // Include date fields if they have values
         startDate: values.startDate || null,
         targetCompletionDate: values.targetCompletionDate || null,
         topics: values.topics.map((topic, index) => ({
+          id: topic.id, // Include ID for existing topics in edit mode
           title: topic.title,
           description: topic.description || "",
-          orderIndex: index
+          orderIndex: index,
+          resources: topic.resources && topic.resources.map((resource, resourceIndex) => ({
+            id: resource.id, // Include ID for existing resources in edit mode
+            title: resource.title,
+            url: resource.resourceType === 'url' ? resource.url : '', // URL will be updated for file resources
+            type: resource.type,
+            description: resource.description || "",
+            orderIndex: resourceIndex
+          }))
         }))
       };
       
-      console.log('Submitting learning plan:', JSON.stringify(formattedValues, null, 2));
-      const learningPlan = await createLearningPlan(formattedValues);
+      let learningPlan;
       
-      // Navigate to the created learning plan
-      navigate(`/learning-plan/${learningPlan.id}`);
+      if (isEditMode) {
+        console.log('Updating learning plan:', JSON.stringify(formattedValues, null, 2));
+        learningPlan = await updateLearningPlan(planId, formattedValues);
+      } else {
+        console.log('Creating learning plan:', JSON.stringify(formattedValues, null, 2));
+        learningPlan = await createLearningPlan(formattedValues);
+      }
+      
+      // Handle PDF file uploads after the learning plan is created/updated
+      const newPlanId = learningPlan.id || planId;
+      const fileUploads = [];
+      
+      // Process all file resources
+      for (let topicIndex = 0; topicIndex < values.topics.length; topicIndex++) {
+        const topic = values.topics[topicIndex];
+        const topicId = learningPlan.topics[topicIndex].id;
+        
+        if (topic.resources) {
+          for (let resourceIndex = 0; resourceIndex < topic.resources.length; resourceIndex++) {
+            const resource = topic.resources[resourceIndex];
+            const resourceId = learningPlan.topics[topicIndex].resources?.[resourceIndex]?.id;
+            
+            if (resource.resourceType === 'file') {
+              const fileKey = `${topicIndex}-${resourceIndex}`;
+              const file = fileResources[fileKey];
+              
+              if (file) {
+                // Create FormData and append the file
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('resourceId', resourceId);
+                
+                // Add to the list of upload promises
+                fileUploads.push(uploadResourceFile(newPlanId, topicId, formData));
+              }
+            }
+          }
+        }
+      }
+      
+      // Execute all file uploads if there are any
+      if (fileUploads.length > 0) {
+        await Promise.all(fileUploads);
+      }
+      
+      // Navigate to the learning plan
+      navigate(`/learning-plan/${newPlanId}`);
     } catch (error) {
-      console.error('Error creating learning plan:', error);
-      setError(error.response?.data?.message || 'Failed to create learning plan');
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} learning plan:`, error);
+      setError(error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} learning plan`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8 flex justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Create Learning Plan</h1>
+      <h1 className="text-2xl font-bold mb-6">{isEditMode ? 'Edit Learning Plan' : 'Create Learning Plan'}</h1>
       
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
@@ -79,18 +220,10 @@ const CreateLearningPlanPage = () => {
       )}
       
       <Formik
-        initialValues={{
-          title: '',
-          description: '',
-          category: '',
-          isPublic: true,
-          estimatedDays: 30,
-          startDate: '',
-          targetCompletionDate: '',
-          topics: [{ title: '', description: '' }]
-        }}
+        initialValues={initialValues}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
+        enableReinitialize={true}
       >
         {({ values, isSubmitting: formSubmitting }) => (
           <Form className="space-y-6 bg-white p-6 rounded-lg shadow">
@@ -241,6 +374,145 @@ const CreateLearningPlanPage = () => {
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
                           </div>
+                          
+                          {/* Resources Section */}
+                          <div className="mt-4">
+                            <h4 className="text-sm font-medium text-gray-700 mb-2">Resources</h4>
+                            <FieldArray name={`topics.${index}.resources`}>
+                              {({ push: pushResource, remove: removeResource }) => (
+                                <div className="space-y-3">
+                                  {topic.resources && topic.resources.length > 0 ? (
+                                    topic.resources.map((resource, resourceIndex) => (
+                                      <div key={resourceIndex} className="p-3 bg-white border border-gray-200 rounded-md">
+                                        <div className="flex justify-between items-center mb-2">
+                                          <h5 className="text-xs font-medium text-gray-700">Resource {resourceIndex + 1}</h5>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeResource(resourceIndex)}
+                                            className="text-red-500 hover:text-red-700 text-xs"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                          <div>
+                                            <Field
+                                              type="text"
+                                              name={`topics.${index}.resources.${resourceIndex}.title`}
+                                              placeholder="Resource title"
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                            <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.title`} component="div" className="mt-1 text-red-600 text-xs" />
+                                          </div>
+                                          
+                                          {/* Resource Type Selector */}
+                                          <div className="flex space-x-2 mb-2">
+                                            <label className="inline-flex items-center">
+                                              <Field
+                                                type="radio"
+                                                name={`topics.${index}.resources.${resourceIndex}.resourceType`}
+                                                value="url"
+                                                className="form-radio h-4 w-4 text-indigo-600"
+                                              />
+                                              <span className="ml-2 text-xs text-gray-700">URL</span>
+                                            </label>
+                                            <label className="inline-flex items-center">
+                                              <Field
+                                                type="radio"
+                                                name={`topics.${index}.resources.${resourceIndex}.resourceType`}
+                                                value="file"
+                                                className="form-radio h-4 w-4 text-indigo-600"
+                                              />
+                                              <span className="ml-2 text-xs text-gray-700">PDF File</span>
+                                            </label>
+                                          </div>
+                                          
+                                          {/* URL Input - Show if resourceType is url */}
+                                          {resource.resourceType === 'url' && (
+                                            <div>
+                                              <Field
+                                                type="text"
+                                                name={`topics.${index}.resources.${resourceIndex}.url`}
+                                                placeholder="URL (e.g., https://example.com)"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                              />
+                                              <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.url`} component="div" className="mt-1 text-red-600 text-xs" />
+                                            </div>
+                                          )}
+                                          
+                                          {/* File Input - Show if resourceType is file */}
+                                          {resource.resourceType === 'file' && (
+                                            <div>
+                                              <input
+                                                type="file"
+                                                id={`file-resource-${index}-${resourceIndex}`}
+                                                accept="application/pdf"
+                                                onChange={(event) => {
+                                                  const file = event.currentTarget.files[0];
+                                                  if (file) {
+                                                    // Store the file in our state tracker
+                                                    setFileResources(prev => ({
+                                                      ...prev,
+                                                      [`${index}-${resourceIndex}`]: file
+                                                    }));
+                                                  }
+                                                }}
+                                                className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                              />
+                                              <p className="mt-1 text-xs text-gray-500">Only PDF files are supported</p>
+                                            </div>
+                                          )}
+                                          
+                                          <div>
+                                            <Field
+                                              as="select"
+                                              name={`topics.${index}.resources.${resourceIndex}.type`}
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                              <option value="">Select type</option>
+                                              <option value="ARTICLE">Article</option>
+                                              <option value="VIDEO">Video</option>
+                                              <option value="COURSE">Course</option>
+                                              <option value="BOOK">Book</option>
+                                              <option value="PDF">PDF</option>
+                                              <option value="OTHER">Other</option>
+                                            </Field>
+                                            <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.type`} component="div" className="mt-1 text-red-600 text-xs" />
+                                          </div>
+                                          
+                                          <div>
+                                            <Field
+                                              as="textarea"
+                                              name={`topics.${index}.resources.${resourceIndex}.description`}
+                                              placeholder="Description (optional)"
+                                              rows="2"
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center py-3 bg-gray-50 rounded-md">
+                                      <p className="text-sm text-gray-500">No resources added yet</p>
+                                    </div>
+                                  )}
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => pushResource({ title: '', url: '', type: 'ARTICLE', description: '', resourceType: 'url' })}
+                                    className="w-full py-2 px-3 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                  >
+                                    <svg className="-ml-0.5 mr-1 h-3 w-3 inline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Add Resource
+                                  </button>
+                                </div>
+                              )}
+                            </FieldArray>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -260,13 +532,24 @@ const CreateLearningPlanPage = () => {
               </FieldArray>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || formSubmitting}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
-            >
-              {isSubmitting || formSubmitting ? 'Creating...' : 'Create Learning Plan'}
-            </button>
+            <div className="flex space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || formSubmitting}
+                className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+              >
+                {isSubmitting || formSubmitting 
+                  ? (isEditMode ? 'Saving...' : 'Creating...') 
+                  : (isEditMode ? 'Save Changes' : 'Create Learning Plan')}
+              </button>
+            </div>
           </Form>
         )}
       </Formik>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getLearningPlanById, updateTopicStatus, updateResourceStatus } from '../api/learningPlanApi';
+import { getLearningPlanById, updateTopicStatus, updateResourceStatus, uploadResourceFile } from '../api/learningPlanApi';
 import { formatDistanceToNow } from 'date-fns';
 import AddResourceForm from '../components/learningPlan/AddResourceForm';
 
@@ -14,6 +14,7 @@ const LearningPlanPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState({});
   const [activeResourceForm, setActiveResourceForm] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState({ uploading: false, progress: 0, error: null });
 
   const fetchLearningPlan = useCallback(async () => {
     setLoading(true);
@@ -99,6 +100,31 @@ const LearningPlanPage = () => {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true });
     } catch (e) {
       return 'Invalid date';
+    }
+  };
+
+  const handleFileSelect = async (topicId, file, resourceId) => {
+    setUploadStatus({ uploading: true, progress: 0, error: null });
+    
+    try {
+      // Create FormData object
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Use the API function to upload the file, now passing the resourceId parameter
+      const response = await uploadResourceFile(planId, topicId, formData, resourceId);
+      
+      // Refresh the learning plan to get updated data
+      await fetchLearningPlan();
+      
+      // Reset upload status
+      setUploadStatus({ uploading: false, progress: 100, error: null });
+      
+      // Close the form
+      setActiveResourceForm(null);
+    } catch (err) {
+      console.error('Error uploading PDF file:', err);
+      setUploadStatus({ uploading: false, progress: 0, error: 'Failed to upload PDF file' });
     }
   };
 
@@ -272,11 +298,11 @@ const LearningPlanPage = () => {
                   >
                     {expandedTopics[topic.id] ? (
                       <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M5.293 7.293a1 1 011.414 0L10 10.586l3.293-3.293a1 1 011.414 1.414l-4 4a1 1 01-1.414 0l-4-4a1 1 010-1.414z" clipRule="evenodd" />
                       </svg>
                     ) : (
                       <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 01-1.414-1.414l4-4a1 1 011.414 0l4 4a1 1 010 1.414z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M14.707 12.707a1 1 01-1.414 0L10 9.414l-3.293 3.293a1 1 01-1.414-1.414l4-4a1 1 011.414 0l4 4a1 1 010 1.414z" clipRule="evenodd" />
                       </svg>
                     )}
                   </button>
@@ -342,6 +368,7 @@ const LearningPlanPage = () => {
                           planId={planId} 
                           topicId={topic.id} 
                           onSuccess={handleResourceAdded} 
+                          onFileSelect={(file) => handleFileSelect(topic.id, file)}
                         />
                         <button
                           onClick={() => setActiveResourceForm(null)}
