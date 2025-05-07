@@ -1,14 +1,19 @@
 ﻿{
-    "version":  "1.0.0",
-    "buildTimestamp":  "2025-05-11T14:00:15.0576729+05:30",
+    "version":  "1.0.58",
+    "buildTimestamp":  "2025-05-07T10:16:51.0330000",
     "systemData":  [
-
+                       {
+                           "id":  "20250511140015-5db272d9",
+                           "date":  "2025-05-07",
+                           "type":  "system_update"
+                       }
                    ],
     "appConfig":  {
                       "features":  {
                                        "analytics":  true,
                                        "notifications":  true,
-                                       "recommendations":  true
+                                       "recommendations":  true,
+                                       "tutoring":  true
                                    }
                   }
 }
