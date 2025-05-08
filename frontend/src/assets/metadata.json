@@ -1,6 +1,6 @@
 ﻿{
-    "version":  "1.0.49",
-    "buildTimestamp":  "2025-05-05T09:45:41.2280000",
+    "version":  "1.0.91",
+    "buildTimestamp":  "2025-05-08T12:26:47.0520000",
     "systemData":  [
                        {
                            "id":  "20250511140015-5db272d9",
@@ -46,6 +46,11 @@
                            "id":  "20250511140227-db274dc1",
                            "date":  "2025-05-05",
                            "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511140227-d57a87d4",
+                           "date":  "2025-05-08",
+                           "type":  "system_update"
                        }
                    ],
     "appConfig":  {
@@ -55,7 +60,7 @@
                                        "recommendations":  false,
                                        "tutoring":  false,
                                        "darkMode":  false,
-                                       "feedback":  true,
+                                       "feedback":  false,
                                        "messaging":  true
                                    }
                   }
