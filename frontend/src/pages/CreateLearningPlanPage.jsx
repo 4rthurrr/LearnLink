@@ -1,30 +1,80 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
-import { createLearningPlan } from '../api/learningPlanApi';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faGraduationCap, faTimes, faPlus, faList, faInfoCircle, 
-  faCalendarAlt, faClock, faGlobe, faSave
-} from '@fortawesome/free-solid-svg-icons';
-import AOS from 'aos';
+import { createLearningPlan, getLearningPlanById, updateLearningPlan, uploadResourceFile } from '../api/learningPlanApi';
+import { useAuth } from '../contexts/AuthContext';
 
 const CreateLearningPlanPage = () => {
   const navigate = useNavigate();
+  const { planId } = useParams();
+  const { currentUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [currentStep, setCurrentStep] = useState(1);
+  const [initialValues, setInitialValues] = useState({
+    title: '',
+    description: '',
+    category: '',
+    isPublic: true,
+    estimatedDays: 30,
+    startDate: '',
+    targetCompletionDate: '',
+    topics: [{ title: '', description: '', resources: [] }]
+  });
+  const [isLoading, setIsLoading] = useState(!!planId);
+  const isEditMode = !!planId;
+  const [fileResources, setFileResources] = useState({});  // To track file resources that need to be uploaded
 
+  // Fetch learning plan data if in edit mode
   useEffect(() => {
-    // Initialize AOS animation library
-    AOS.init({
-      duration: 800,
-      once: true,
-      easing: 'ease-out'
-    });
-  }, []);
+    const fetchLearningPlan = async () => {
+      if (planId) {
+        try {
+          setIsLoading(true);
+          const planData = await getLearningPlanById(planId);
+          
+          // Check if the current user is the creator of the plan
+          if (currentUser.id !== planData.creator?.id) {
+            setError("You don't have permission to edit this learning plan");
+            return;
+          }
+          
+          // Format dates for form fields (YYYY-MM-DD)
+          const formatDate = (dateString) => {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            return date.toISOString().split('T')[0];
+          };
+          
+          setInitialValues({
+            title: planData.title || '',
+            description: planData.description || '',
+            category: planData.category || '',
+            isPublic: planData.isPublic !== undefined ? planData.isPublic : true,
+            estimatedDays: planData.estimatedDays || 30,
+            startDate: formatDate(planData.startDate),
+            targetCompletionDate: formatDate(planData.targetCompletionDate),
+            topics: planData.topics && planData.topics.length > 0 
+              ? planData.topics.map(topic => ({
+                  id: topic.id,
+                  title: topic.title || '',
+                  description: topic.description || '',
+                  resources: topic.resources || []
+                }))
+              : [{ title: '', description: '', resources: [] }]
+          });
+        } catch (err) {
+          console.error('Error fetching learning plan:', err);
+          setError('Failed to load learning plan data');
+          navigate('/profile');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchLearningPlan();
+  }, [planId, currentUser, navigate]);
 
   // Define validation schema
   const validationSchema = Yup.object({
@@ -42,7 +92,20 @@ const CreateLearningPlanPage = () => {
     topics: Yup.array().of(
       Yup.object({
         title: Yup.string().required('Topic title is required'),
-        description: Yup.string()
+        description: Yup.string(),
+        resources: Yup.array().of(
+          Yup.object({
+            title: Yup.string().required('Resource title is required'),
+            url: Yup.string().when('resourceType', {
+              is: 'url',
+              then: () => Yup.string().required('Resource URL is required').url('Must be a valid URL'),
+              otherwise: () => Yup.string().nullable()
+            }),
+            type: Yup.string().required('Resource type is required'),
+            description: Yup.string(),
+            resourceType: Yup.string().oneOf(['url', 'file'])
+          })
+        )
       })
     ).min(1, 'At least one topic is required')
   });
@@ -62,514 +125,431 @@ const CreateLearningPlanPage = () => {
         startDate: values.startDate || null,
         targetCompletionDate: values.targetCompletionDate || null,
         topics: values.topics.map((topic, index) => ({
+          id: topic.id, // Include ID for existing topics in edit mode
           title: topic.title,
           description: topic.description || "",
-          orderIndex: index
+          orderIndex: index,
+          resources: topic.resources && topic.resources.map((resource, resourceIndex) => ({
+            id: resource.id, // Include ID for existing resources in edit mode
+            title: resource.title,
+            url: resource.resourceType === 'url' ? resource.url : '', // URL will be updated for file resources
+            type: resource.type,
+            description: resource.description || "",
+            orderIndex: resourceIndex
+          }))
         }))
       };
       
-      console.log('Submitting learning plan:', JSON.stringify(formattedValues, null, 2));
-      const learningPlan = await createLearningPlan(formattedValues);
+      let learningPlan;
       
-      // Show success animation before redirecting
-      setTimeout(() => {
-        // Navigate to the created learning plan
-        navigate(`/learning-plan/${learningPlan.id}`);
-      }, 1000);
+      if (isEditMode) {
+        console.log('Updating learning plan:', JSON.stringify(formattedValues, null, 2));
+        learningPlan = await updateLearningPlan(planId, formattedValues);
+      } else {
+        console.log('Creating learning plan:', JSON.stringify(formattedValues, null, 2));
+        learningPlan = await createLearningPlan(formattedValues);
+      }
+      
+      // Handle PDF file uploads after the learning plan is created/updated
+      const newPlanId = learningPlan.id || planId;
+      const fileUploads = [];
+      
+      // Process all file resources
+      for (let topicIndex = 0; topicIndex < values.topics.length; topicIndex++) {
+        const topic = values.topics[topicIndex];
+        const topicId = learningPlan.topics[topicIndex].id;
+        
+        if (topic.resources) {
+          for (let resourceIndex = 0; resourceIndex < topic.resources.length; resourceIndex++) {
+            const resource = topic.resources[resourceIndex];
+            const resourceId = learningPlan.topics[topicIndex].resources?.[resourceIndex]?.id;
+            
+            if (resource.resourceType === 'file') {
+              const fileKey = `${topicIndex}-${resourceIndex}`;
+              const file = fileResources[fileKey];
+              
+              if (file) {
+                // Create FormData and append the file
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('resourceId', resourceId);
+                
+                // Add to the list of upload promises
+                fileUploads.push(uploadResourceFile(newPlanId, topicId, formData));
+              }
+            }
+          }
+        }
+      }
+      
+      // Execute all file uploads if there are any
+      if (fileUploads.length > 0) {
+        await Promise.all(fileUploads);
+      }
+      
+      // Navigate to the learning plan
+      navigate(`/learning-plan/${newPlanId}`);
     } catch (error) {
-      console.error('Error creating learning plan:', error);
-      setError(error.response?.data?.message || 'Failed to create learning plan');
+      console.error(`Error ${isEditMode ? 'updating' : 'creating'} learning plan:`, error);
+      setError(error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'create'} learning plan`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const nextStep = () => {
-    setCurrentStep(currentStep + 1);
-  };
-
-  const prevStep = () => {
-    setCurrentStep(currentStep - 1);
-  };
-
-  const fadeInUp = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { duration: 0.5 }
-    },
-    exit: { 
-      opacity: 0,
-      y: -20,
-      transition: { duration: 0.3 }
-    }
-  };
-
-  const slideIn = {
-    hidden: { x: 300, opacity: 0 },
-    visible: { 
-      x: 0, 
-      opacity: 1,
-      transition: { type: 'spring', stiffness: 300, damping: 30 }
-    },
-    exit: { 
-      x: -300, 
-      opacity: 0,
-      transition: { duration: 0.3 }
-    }
-  };
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-8 flex justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      {/* Page Header with Animation */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="text-center mb-8"
-      >
-        <h1 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">
-          <span className="inline-block mr-2">
-            <FontAwesomeIcon icon={faGraduationCap} className="text-indigo-600" />
-          </span>
-          Create Learning Plan
-        </h1>
-        <p className="mt-3 max-w-2xl mx-auto text-xl text-gray-500 sm:mt-4">
-          Share your knowledge and help others learn with a structured learning plan
-        </p>
-      </motion.div>
-
-      {/* Steps Indicator */}
-      <div className="mb-8" data-aos="fade-up" data-aos-delay="100">
-        <div className="flex items-center justify-center">
-          <div className="flex items-center w-full max-w-3xl mx-auto">
-            {[1, 2].map((step) => (
-              <div key={step} className="flex-1">
-                <div className="flex items-center">
-                  <div 
-                    className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center 
-                      ${currentStep >= step ? 'bg-indigo-600' : 'bg-gray-300'} 
-                      transition-colors duration-300`}
-                  >
-                    <span className="text-white font-medium">{step}</span>
-                  </div>
-                  <div 
-                    className={`flex-1 ml-4 ${step === 2 ? 'hidden' : ''}`}
-                  >
-                    <div 
-                      className={`h-1 ${currentStep > step ? 'bg-indigo-600' : 'bg-gray-300'} 
-                        transition-colors duration-300`}
-                    ></div>
-                  </div>
-                </div>
-                <div className="text-center mt-2">
-                  <span 
-                    className={`text-sm font-medium ${currentStep >= step ? 'text-indigo-600' : 'text-gray-500'}`}
-                  >
-                    {step === 1 ? 'Basic Information' : 'Topics'}
-                  </span>
-                </div>
-              </div>
-            ))}
+    <div className="max-w-3xl mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">{isEditMode ? 'Edit Learning Plan' : 'Create Learning Plan'}</h1>
+      
+      {error && (
+        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
+          <div className="flex">
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
           </div>
         </div>
-      </div>
-      
-      {/* Error Message with Animation */}
-      <AnimatePresence>
-        {error && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="bg-red-50 border-l-4 border-red-400 p-4 mb-6 rounded-md shadow-sm"
-          >
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <FontAwesomeIcon icon={faTimes} className="h-5 w-5 text-red-400" />
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      )}
       
       <Formik
-        initialValues={{
-          title: '',
-          description: '',
-          category: '',
-          isPublic: true,
-          estimatedDays: 30,
-          startDate: '',
-          targetCompletionDate: '',
-          topics: [{ title: '', description: '' }]
-        }}
+        initialValues={initialValues}
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
+        enableReinitialize={true}
       >
-        {({ values, isSubmitting: formSubmitting, errors, touched }) => (
-          <Form>
-            <AnimatePresence mode="wait">
-              {currentStep === 1 && (
-                <motion.div
-                  key="step1"
-                  variants={slideIn}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="space-y-6 bg-white p-8 rounded-xl shadow-lg border border-gray-100"
-                >
-                  {/* Basic Information */}
-                  <div className="space-y-6" data-aos="fade-up">
-                    <div className="flex items-center mb-2">
-                      <FontAwesomeIcon icon={faInfoCircle} className="text-indigo-600 mr-2" />
-                      <h2 className="text-xl font-semibold text-gray-900">Basic Information</h2>
-                    </div>
-                    
-                    <div className="relative group">
-                      <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label>
-                      <Field
-                        type="text"
-                        name="title"
-                        id="title"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        placeholder="Give your learning plan a clear, descriptive title"
-                      />
-                      <ErrorMessage name="title">
-                        {msg => (
-                          <motion.div 
-                            initial={{ opacity: 0 }} 
-                            animate={{ opacity: 1 }} 
-                            className="mt-1 text-red-600 text-sm"
-                          >
-                            {msg}
-                          </motion.div>
-                        )}
-                      </ErrorMessage>
-                    </div>
+        {({ values, isSubmitting: formSubmitting }) => (
+          <Form className="space-y-6 bg-white p-6 rounded-lg shadow">
+            {/* Basic Information */}
+            <div className="space-y-4 pb-4 border-b">
+              <h2 className="text-lg font-medium">Basic Information</h2>
+              
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <Field
+                  type="text"
+                  name="title"
+                  id="title"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Give your learning plan a title"
+                />
+                <ErrorMessage name="title" component="div" className="mt-1 text-red-600 text-sm" />
+              </div>
 
-                    <div>
-                      <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label>
-                      <Field
-                        as="textarea"
-                        name="description"
-                        id="description"
-                        rows="4"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        placeholder="Describe what learners will achieve with this learning plan..."
-                      />
-                      <ErrorMessage name="description">
-                        {msg => (
-                          <motion.div 
-                            initial={{ opacity: 0 }} 
-                            animate={{ opacity: 1 }} 
-                            className="mt-1 text-red-600 text-sm"
-                          >
-                            {msg}
-                          </motion.div>
-                        )}
-                      </ErrorMessage>
-                    </div>
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <Field
+                  as="textarea"
+                  name="description"
+                  id="description"
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Describe your learning plan..."
+                />
+                <ErrorMessage name="description" component="div" className="mt-1 text-red-600 text-sm" />
+              </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label>
-                        <div className="relative">
-                          <Field
-                            as="select"
-                            name="category"
-                            id="category"
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none transition-all duration-200"
-                          >
-                            <option value="" disabled>Select a category</option>
-                            <option value="PROGRAMMING">Programming</option>
-                            <option value="DESIGN">Design</option>
-                            <option value="BUSINESS">Business</option>
-                            <option value="LANGUAGE">Language</option>
-                            <option value="MUSIC">Music</option>
-                            <option value="ART">Art</option>
-                            <option value="SCIENCE">Science</option>
-                            <option value="MATH">Math</option>
-                            <option value="HISTORY">History</option>
-                            <option value="OTHER">Other</option>
-                          </Field>
-                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <Field
+                    as="select"
+                    name="category"
+                    id="category"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">Select a category</option>
+                    <option value="PROGRAMMING">Programming</option>
+                    <option value="DESIGN">Design</option>
+                    <option value="BUSINESS">Business</option>
+                    <option value="LANGUAGE">Language</option>
+                    <option value="MUSIC">Music</option>
+                    <option value="ART">Art</option>
+                    <option value="SCIENCE">Science</option>
+                    <option value="MATH">Math</option>
+                    <option value="HISTORY">History</option>
+                    <option value="OTHER">Other</option>
+                  </Field>
+                  <ErrorMessage name="category" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+                
+                <div>
+                  <label htmlFor="estimatedDays" className="block text-sm font-medium text-gray-700 mb-1">
+                    Estimated Days to Complete
+                  </label>
+                  <Field
+                    type="number"
+                    name="estimatedDays"
+                    id="estimatedDays"
+                    min="1"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <ErrorMessage name="estimatedDays" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date (Optional)
+                  </label>
+                  <Field
+                    type="date"
+                    name="startDate"
+                    id="startDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <ErrorMessage name="startDate" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+                
+                <div>
+                  <label htmlFor="targetCompletionDate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Target Completion Date (Optional)
+                  </label>
+                  <Field
+                    type="date"
+                    name="targetCompletionDate"
+                    id="targetCompletionDate"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <ErrorMessage name="targetCompletionDate" component="div" className="mt-1 text-red-600 text-sm" />
+                </div>
+              </div>
+
+              <div className="flex items-center">
+                <Field
+                  type="checkbox"
+                  name="isPublic"
+                  id="isPublic"
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <label htmlFor="isPublic" className="ml-2 block text-sm text-gray-700">
+                  Make this learning plan public
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h2 className="text-lg font-medium">Topics</h2>
+              <FieldArray name="topics">
+                {({ push, remove }) => (
+                  <div className="space-y-4">
+                    {values.topics.map((topic, index) => (
+                      <div key={index} className="border rounded-md p-4 bg-gray-50">
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="font-medium">Topic {index + 1}</h3>
+                          {values.topics.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => remove(index)}
+                              className="mt-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label htmlFor={`topics.${index}.title`} className="block text-sm font-medium text-gray-700 mb-1">Topic Title</label>
+                            <Field
+                              type="text"
+                              name={`topics.${index}.title`}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <ErrorMessage name={`topics.${index}.title`} component="div" className="mt-1 text-red-600 text-sm" />
+                          </div>
+                          <div>
+                            <Field
+                              as="textarea"
+                              name={`topics.${index}.description`}
+                              rows="2"
+                              placeholder="Topic description (optional)"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                          </div>
+                          
+                          {/* Resources Section */}
+                          <div className="mt-4">
+                            <h4 className="text-sm font-medium text-gray-700 mb-2">Resources</h4>
+                            <FieldArray name={`topics.${index}.resources`}>
+                              {({ push: pushResource, remove: removeResource }) => (
+                                <div className="space-y-3">
+                                  {topic.resources && topic.resources.length > 0 ? (
+                                    topic.resources.map((resource, resourceIndex) => (
+                                      <div key={resourceIndex} className="p-3 bg-white border border-gray-200 rounded-md">
+                                        <div className="flex justify-between items-center mb-2">
+                                          <h5 className="text-xs font-medium text-gray-700">Resource {resourceIndex + 1}</h5>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeResource(resourceIndex)}
+                                            className="text-red-500 hover:text-red-700 text-xs"
+                                          >
+                                            Remove
+                                          </button>
+                                        </div>
+                                        
+                                        <div className="space-y-2">
+                                          <div>
+                                            <Field
+                                              type="text"
+                                              name={`topics.${index}.resources.${resourceIndex}.title`}
+                                              placeholder="Resource title"
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                            <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.title`} component="div" className="mt-1 text-red-600 text-xs" />
+                                          </div>
+                                          
+                                          {/* Resource Type Selector */}
+                                          <div className="flex space-x-2 mb-2">
+                                            <label className="inline-flex items-center">
+                                              <Field
+                                                type="radio"
+                                                name={`topics.${index}.resources.${resourceIndex}.resourceType`}
+                                                value="url"
+                                                className="form-radio h-4 w-4 text-indigo-600"
+                                              />
+                                              <span className="ml-2 text-xs text-gray-700">URL</span>
+                                            </label>
+                                            <label className="inline-flex items-center">
+                                              <Field
+                                                type="radio"
+                                                name={`topics.${index}.resources.${resourceIndex}.resourceType`}
+                                                value="file"
+                                                className="form-radio h-4 w-4 text-indigo-600"
+                                              />
+                                              <span className="ml-2 text-xs text-gray-700">PDF File</span>
+                                            </label>
+                                          </div>
+                                          
+                                          {/* URL Input - Show if resourceType is url */}
+                                          {resource.resourceType === 'url' && (
+                                            <div>
+                                              <Field
+                                                type="text"
+                                                name={`topics.${index}.resources.${resourceIndex}.url`}
+                                                placeholder="URL (e.g., https://example.com)"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                              />
+                                              <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.url`} component="div" className="mt-1 text-red-600 text-xs" />
+                                            </div>
+                                          )}
+                                          
+                                          {/* File Input - Show if resourceType is file */}
+                                          {resource.resourceType === 'file' && (
+                                            <div>
+                                              <input
+                                                type="file"
+                                                id={`file-resource-${index}-${resourceIndex}`}
+                                                accept="application/pdf"
+                                                onChange={(event) => {
+                                                  const file = event.currentTarget.files[0];
+                                                  if (file) {
+                                                    // Store the file in our state tracker
+                                                    setFileResources(prev => ({
+                                                      ...prev,
+                                                      [`${index}-${resourceIndex}`]: file
+                                                    }));
+                                                  }
+                                                }}
+                                                className="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                              />
+                                              <p className="mt-1 text-xs text-gray-500">Only PDF files are supported</p>
+                                            </div>
+                                          )}
+                                          
+                                          <div>
+                                            <Field
+                                              as="select"
+                                              name={`topics.${index}.resources.${resourceIndex}.type`}
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                              <option value="">Select type</option>
+                                              <option value="ARTICLE">Article</option>
+                                              <option value="VIDEO">Video</option>
+                                              <option value="COURSE">Course</option>
+                                              <option value="BOOK">Book</option>
+                                              <option value="PDF">PDF</option>
+                                              <option value="OTHER">Other</option>
+                                            </Field>
+                                            <ErrorMessage name={`topics.${index}.resources.${resourceIndex}.type`} component="div" className="mt-1 text-red-600 text-xs" />
+                                          </div>
+                                          
+                                          <div>
+                                            <Field
+                                              as="textarea"
+                                              name={`topics.${index}.resources.${resourceIndex}.description`}
+                                              placeholder="Description (optional)"
+                                              rows="2"
+                                              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="text-center py-3 bg-gray-50 rounded-md">
+                                      <p className="text-sm text-gray-500">No resources added yet</p>
+                                    </div>
+                                  )}
+                                  
+                                  <button
+                                    type="button"
+                                    onClick={() => pushResource({ title: '', url: '', type: 'ARTICLE', description: '', resourceType: 'url' })}
+                                    className="w-full py-2 px-3 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                  >
+                                    <svg className="-ml-0.5 mr-1 h-3 w-3 inline" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Add Resource
+                                  </button>
+                                </div>
+                              )}
+                            </FieldArray>
                           </div>
                         </div>
-                        <ErrorMessage name="category">
-                          {msg => (
-                            <motion.div 
-                              initial={{ opacity: 0 }} 
-                              animate={{ opacity: 1 }} 
-                              className="mt-1 text-red-600 text-sm"
-                            >
-                              {msg}
-                            </motion.div>
-                          )}
-                        </ErrorMessage>
                       </div>
-                      
-                      <div>
-                        <label htmlFor="estimatedDays" className="block text-sm font-medium text-gray-700 mb-1">
-                          <FontAwesomeIcon icon={faClock} className="mr-1" /> Estimated Days to Complete <span className="text-red-500">*</span>
-                        </label>
-                        <Field
-                          type="number"
-                          name="estimatedDays"
-                          id="estimatedDays"
-                          min="1"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        />
-                        <ErrorMessage name="estimatedDays">
-                          {msg => (
-                            <motion.div 
-                              initial={{ opacity: 0 }} 
-                              animate={{ opacity: 1 }} 
-                              className="mt-1 text-red-600 text-sm"
-                            >
-                              {msg}
-                            </motion.div>
-                          )}
-                        </ErrorMessage>
-                      </div>
-                    </div>
+                    ))}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          <FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Start Date (Optional)
-                        </label>
-                        <Field
-                          type="date"
-                          name="startDate"
-                          id="startDate"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        />
-                        <ErrorMessage name="startDate">
-                          {msg => (
-                            <motion.div 
-                              initial={{ opacity: 0 }} 
-                              animate={{ opacity: 1 }} 
-                              className="mt-1 text-red-600 text-sm"
-                            >
-                              {msg}
-                            </motion.div>
-                          )}
-                        </ErrorMessage>
-                      </div>
-                      
-                      <div>
-                        <label htmlFor="targetCompletionDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          <FontAwesomeIcon icon={faCalendarAlt} className="mr-1" /> Target Completion Date (Optional)
-                        </label>
-                        <Field
-                          type="date"
-                          name="targetCompletionDate"
-                          id="targetCompletionDate"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                        />
-                        <ErrorMessage name="targetCompletionDate">
-                          {msg => (
-                            <motion.div 
-                              initial={{ opacity: 0 }} 
-                              animate={{ opacity: 1 }} 
-                              className="mt-1 text-red-600 text-sm"
-                            >
-                              {msg}
-                            </motion.div>
-                          )}
-                        </ErrorMessage>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="relative inline-block w-10 mr-4 align-middle select-none">
-                        <Field
-                          type="checkbox"
-                          name="isPublic"
-                          id="isPublic"
-                          className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer focus:outline-none transition-transform duration-200 ease-in-out"
-                        />
-                        <label
-                          htmlFor="isPublic"
-                          className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer"
-                        ></label>
-                      </div>
-                      <label htmlFor="isPublic" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center">
-                        <FontAwesomeIcon icon={faGlobe} className="mr-2 text-indigo-500" />
-                        Make this learning plan public and help others learn
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <motion.button
+                    <button
                       type="button"
-                      onClick={nextStep}
-                      className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.98 }}
-                      disabled={
-                        !values.title || !values.description || !values.category || !values.estimatedDays ||
-                        errors.title || errors.description || errors.category || errors.estimatedDays
-                      }
+                      onClick={() => push({ title: '', description: '' })}
+                      className="mt-2 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
-                      Continue to Topics
-                      <svg className="ml-2 -mr-1 w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                      <svg className="-ml-0.5 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                       </svg>
-                    </motion.button>
+                      Add Topic
+                    </button>
                   </div>
-                </motion.div>
-              )}
+                )}
+              </FieldArray>
+            </div>
 
-              {currentStep === 2 && (
-                <motion.div
-                  key="step2"
-                  variants={slideIn}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="space-y-6 bg-white p-8 rounded-xl shadow-lg border border-gray-100"
-                >
-                  <div className="space-y-6" data-aos="fade-up">
-                    <div className="flex items-center mb-2">
-                      <FontAwesomeIcon icon={faList} className="text-indigo-600 mr-2" />
-                      <h2 className="text-xl font-semibold text-gray-900">Define Your Learning Topics</h2>
-                    </div>
-                    
-                    <p className="text-sm text-gray-500">
-                      Break down your learning plan into manageable topics to help learners track their progress.
-                    </p>
-
-                    <FieldArray name="topics">
-                      {({ push, remove }) => (
-                        <div className="space-y-6">
-                          {values.topics.map((topic, index) => (
-                            <motion.div 
-                              key={index} 
-                              className="border rounded-xl p-6 bg-gray-50 relative group"
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ duration: 0.3, delay: index * 0.1 }}
-                              whileHover={{ boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                            >
-                              <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                {values.topics.length > 1 && (
-                                  <motion.button
-                                    type="button"
-                                    onClick={() => remove(index)}
-                                    className="text-gray-400 hover:text-red-500 transition-colors duration-200"
-                                    whileHover={{ scale: 1.1 }}
-                                    whileTap={{ scale: 0.9 }}
-                                  >
-                                    <FontAwesomeIcon icon={faTimes} className="h-5 w-5" />
-                                  </motion.button>
-                                )}
-                              </div>
-                              
-                              <div className="flex items-center mb-4">
-                                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-semibold text-sm">
-                                  {index + 1}
-                                </div>
-                                <h3 className="ml-3 font-medium text-gray-900">Topic {index + 1}</h3>
-                              </div>
-                              
-                              <div className="space-y-4">
-                                <div>
-                                  <label htmlFor={`topics.${index}.title`} className="block text-sm font-medium text-gray-700 mb-1">Topic Title <span className="text-red-500">*</span></label>
-                                  <Field
-                                    type="text"
-                                    name={`topics.${index}.title`}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                                    placeholder="What will be learned in this topic?"
-                                  />
-                                  <ErrorMessage name={`topics.${index}.title`}>
-                                    {msg => (
-                                      <motion.div 
-                                        initial={{ opacity: 0 }} 
-                                        animate={{ opacity: 1 }} 
-                                        className="mt-1 text-red-600 text-sm"
-                                      >
-                                        {msg}
-                                      </motion.div>
-                                    )}
-                                  </ErrorMessage>
-                                </div>
-                                <div>
-                                  <label htmlFor={`topics.${index}.description`} className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
-                                  <Field
-                                    as="textarea"
-                                    name={`topics.${index}.description`}
-                                    rows="3"
-                                    placeholder="Provide additional details about this topic..."
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200"
-                                  />
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))}
-
-                          <motion.button
-                            type="button"
-                            onClick={() => push({ title: '', description: '' })}
-                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.97 }}
-                          >
-                            <FontAwesomeIcon icon={faPlus} className="mr-2 text-indigo-600" />
-                            Add Another Topic
-                          </motion.button>
-                        </div>
-                      )}
-                    </FieldArray>
-                  </div>
-
-                  <div className="flex justify-between pt-6 border-t border-gray-200">
-                    <motion.button
-                      type="button"
-                      onClick={prevStep}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all duration-200"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <svg className="mr-2 -ml-1 w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                      </svg>
-                      Back
-                    </motion.button>
-
-                    <motion.button
-                      type="submit"
-                      disabled={isSubmitting || formSubmitting}
-                      className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-full shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 transition-all duration-200"
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                    >
-                      <FontAwesomeIcon icon={faSave} className="mr-2" />
-                      {isSubmitting || formSubmitting ? (
-                        <span className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v1a7 7 0 00-7 7h1zm10-1a1 1 0 011 1v4a1 1 0 11-2 0v-4a1 1 0 011-1z"></path>
-                          </svg>
-                          Creating...
-                        </span>
-                      ) : (
-                        "Create Learning Plan"
-                      )}
-                    </motion.button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            <div className="flex space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || formSubmitting}
+                className="flex-1 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
+              >
+                {isSubmitting || formSubmitting 
+                  ? (isEditMode ? 'Saving...' : 'Creating...') 
+                  : (isEditMode ? 'Save Changes' : 'Create Learning Plan')}
+              </button>
+            </div>
           </Form>
         )}
       </Formik>

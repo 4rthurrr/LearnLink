@@ -34,6 +34,7 @@ const AppRoutes = () => {
         <Route path="post/:postId" element={<ProtectedRoute component={PostDetailPage} />} />
         <Route path="create-post" element={<ProtectedRoute component={CreatePostPage} />} />
         <Route path="learning-plan/:planId" element={<ProtectedRoute component={LearningPlanPage} />} />
+        <Route path="learning-plan/:planId/edit" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
         <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
         <Route path="notifications" element={<ProtectedRoute component={NotificationsPage} />} />
         <Route path="analytics" element={<ProtectedRoute component={AnalyticsDashboardPage} />} />

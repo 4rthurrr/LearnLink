@@ -551,4 +551,47 @@ public class LearningPlanService {
                 .isCompleted(resource.getIsCompleted())
                 .build();
     }
+    
+    /**
+     * Updates a resource's URL after a file has been uploaded.
+     * 
+     * @param planId The learning plan ID
+     * @param topicId The topic ID
+     * @param resourceId The resource ID
+     * @param fileUrl The URL of the uploaded file
+     * @param currentUserEmail The email of the current user
+     * @return The updated learning plan
+     */
+    @Transactional
+    public LearningPlanResponse updateResourceFileUrl(Long planId, Long topicId, Long resourceId, 
+                                                    String fileUrl, String currentUserEmail) {
+        User currentUser = userService.getCurrentUser(currentUserEmail);
+        
+        LearningPlan learningPlan = learningPlanRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("LearningPlan", "id", planId));
+        
+        if (!learningPlan.getCreator().getId().equals(currentUser.getId())) {
+            throw new IllegalArgumentException("You don't have permission to modify this learning plan");
+        }
+        
+        Topic topic = topicRepository.findById(topicId)
+                .orElseThrow(() -> new ResourceNotFoundException("Topic", "id", topicId));
+        
+        if (!topic.getLearningPlan().getId().equals(planId)) {
+            throw new IllegalArgumentException("The topic does not belong to the specified learning plan");
+        }
+        
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", resourceId));
+        
+        if (!resource.getTopic().getId().equals(topicId)) {
+            throw new IllegalArgumentException("The resource does not belong to the specified topic");
+        }
+        
+        resource.setUrl(fileUrl);
+        resource.setType(Resource.ResourceType.PDF); // Set the type based on file extension
+        resourceRepository.save(resource);
+        
+        return mapToLearningPlanResponse(learningPlan);
+    }
 }

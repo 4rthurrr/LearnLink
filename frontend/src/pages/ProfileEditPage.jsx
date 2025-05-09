@@ -46,22 +46,33 @@ const ProfileEditPage = () => {
     setError(''); // Clear any previous errors
     
     try {
-      // Add the user ID to the values object
-      const profileData = {
-        ...values,
-        id: currentUser.id
-      };
+      // First handle profile picture upload if needed
+      let profilePictureUrl = currentUser.profilePicture;
       
-      // First update basic profile data
-      const updatedProfile = await updateUserProfile(profileData);
-      
-      // If a new picture was selected, upload it
       if (pictureFile) {
         const formData = new FormData();
         formData.append('file', pictureFile);
-        const pictureData = await uploadProfilePicture(formData);
-        updatedProfile.profilePicture = pictureData.fileUrl;
+        
+        try {
+          const pictureResponse = await uploadProfilePicture(formData);
+          profilePictureUrl = pictureResponse.fileUrl;
+          console.log('Profile picture uploaded successfully:', profilePictureUrl);
+        } catch (pictureError) {
+          console.error('Error uploading profile picture:', pictureError);
+          setError('Failed to upload profile picture. Please try again.');
+          setLoading(false);
+          return;
+        }
       }
+      
+      // Then update profile data
+      const profileData = {
+        ...values,
+        id: currentUser.id,
+        profilePicture: profilePictureUrl
+      };
+      
+      const updatedProfile = await updateUserProfile(profileData);
       
       // Update context user data
       setCurrentUser({

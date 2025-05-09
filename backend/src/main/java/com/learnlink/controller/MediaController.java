@@ -13,6 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/media")
@@ -31,6 +37,7 @@ public class MediaController {
             contentType = request.getServletContext().getMimeType(resource.getFile().getAbsolutePath());
         } catch (IOException ex) {
             // Logger would be used here in a production application
+            System.err.println("Could not determine file content type: " + ex.getMessage());
         }
         
         // Fallback to the default content type if type could not be determined
@@ -42,5 +49,29 @@ public class MediaController {
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
                 .body(resource);
+    }
+    
+    @GetMapping("/debug/files")
+    public ResponseEntity<Map<String, Object>> listAllFiles() {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            response.put("uploadLocation", fileStorageService.getFileStorageLocation().toString());
+            
+            List<String> files = Files.list(fileStorageService.getFileStorageLocation())
+                    .filter(Files::isRegularFile)
+                    .map(Path::getFileName)
+                    .map(Path::toString)
+                    .collect(Collectors.toList());
+            
+            response.put("files", files);
+            response.put("count", files.size());
+            response.put("success", true);
+        } catch (IOException e) {
+            response.put("success", false);
+            response.put("error", e.getMessage());
+        }
+        
+        return ResponseEntity.ok(response);
     }
 }

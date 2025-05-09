@@ -64,6 +64,7 @@ public class Resource {
         BOOK,
         COURSE,
         EXERCISE,
+        PDF,
         OTHER
     }
 }
