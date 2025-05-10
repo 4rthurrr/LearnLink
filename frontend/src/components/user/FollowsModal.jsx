@@ -11,13 +11,32 @@ const FollowsModal = ({ isOpen, onClose, userId, type }) => {
   
   useEffect(() => {
     if (isOpen) {
+      // Reset state when modal opens
+      setUsers([]);
+      setPage(0);
+      setError('');
       fetchUsers();
     }
-  }, [isOpen, userId, type, page]);
+  }, [isOpen, userId, type]);
+  
+  // Separate effect for pagination to avoid refetching everything when page changes
+  useEffect(() => {
+    if (isOpen && page > 0) {
+      fetchUsers();
+    }
+  }, [page]);
   
   const fetchUsers = async () => {
+    if (!userId) {
+      setError('User ID is missing');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
+      setError(''); // Clear any previous errors
+      
       const fetchFunction = type === 'followers' ? getUserFollowers : getUserFollowing;
       const data = await fetchFunction(userId, page);
       
@@ -25,7 +44,10 @@ const FollowsModal = ({ isOpen, onClose, userId, type }) => {
       setHasMore(!data.last);
     } catch (err) {
       console.error(`Error fetching ${type}:`, err);
-      setError(`Failed to load ${type}: ${err.message}`);
+      setError(`Failed to load ${type}. Please try again later.`);
+      if (err.response?.status === 500) {
+        console.error('Server error details:', err.response?.data);
+      }
     } finally {
       setLoading(false);
     }
@@ -33,6 +55,11 @@ const FollowsModal = ({ isOpen, onClose, userId, type }) => {
   
   const loadMore = () => {
     setPage(prevPage => prevPage + 1);
+  };
+  
+  const handleRetry = () => {
+    setPage(0);
+    fetchUsers();
   };
   
   if (!isOpen) return null;
@@ -56,7 +83,15 @@ const FollowsModal = ({ isOpen, onClose, userId, type }) => {
         
         <div className="overflow-auto flex-grow">
           {error ? (
-            <div className="p-4 text-red-500">{error}</div>
+            <div className="p-6 text-center">
+              <p className="text-red-500 mb-4">{error}</p>
+              <button 
+                onClick={handleRetry} 
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
+              >
+                Retry
+              </button>
+            </div>
           ) : users.length > 0 ? (
             <ul className="divide-y divide-gray-200">
               {users.map(user => (
@@ -101,7 +136,7 @@ const FollowsModal = ({ isOpen, onClose, userId, type }) => {
           )}
         </div>
         
-        {hasMore && !loading && (
+        {hasMore && !loading && !error && (
           <div className="p-4 border-t border-gray-200">
             <button
               onClick={loadMore}

@@ -7,6 +7,7 @@ import ProfilePage from '../pages/ProfilePage';
 import ProfileEditPage from '../pages/ProfileEditPage';
 import PostDetailPage from '../pages/PostDetailPage';
 import CreatePostPage from '../pages/CreatePostPage';
+import EditPostPage from '../pages/EditPostPage';
 import LearningPlanPage from '../pages/LearningPlanPage';
 import CreateLearningPlanPage from '../pages/CreateLearningPlanPage';
 import NotificationsPage from '../pages/NotificationsPage';
@@ -33,6 +34,7 @@ const AppRoutes = () => {
         <Route path="profile/:userId" element={<ProtectedRoute component={ProfilePage} />} />
         <Route path="post/:postId" element={<ProtectedRoute component={PostDetailPage} />} />
         <Route path="create-post" element={<ProtectedRoute component={CreatePostPage} />} />
+        <Route path="edit-post/:postId" element={<ProtectedRoute component={EditPostPage} />} />
         <Route path="learning-plan/:planId" element={<ProtectedRoute component={LearningPlanPage} />} />
         <Route path="learning-plan/:planId/edit" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
         <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />

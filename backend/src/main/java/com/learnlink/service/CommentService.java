@@ -158,6 +158,18 @@ public class CommentService {
         commentRepository.delete(comment);
     }
     
+    @Transactional
+    public void deleteAllCommentsByPost(Long postId) {
+        Post post = postRepository.findById(postId)
+                .orElseThrow(() -> new ResourceNotFoundException("Post", "id", postId));
+        
+        // Find all comments associated with this post
+        List<Comment> commentsToDelete = commentRepository.findByPost(post);
+        
+        // Delete all the comments
+        commentRepository.deleteAll(commentsToDelete);
+    }
+    
     public long countCommentsByPost(Long postId) {
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new ResourceNotFoundException("Post", "id", postId));

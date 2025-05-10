@@ -171,12 +171,23 @@ public class PostService {
             throw new IllegalArgumentException("You are not authorized to delete this post");
         }
         
-        // Delete associated media files
-        for (Media media : post.getMedia()) {
-            fileStorageService.deleteFile(media.getFileName());
+        try {
+            // First, delete all likes associated with this post
+            likeRepository.deleteByPost(post);
+            
+            // Then, delete all comments associated with this post
+            commentService.deleteAllCommentsByPost(post.getId());
+            
+            // Delete associated media files
+            for (Media media : post.getMedia()) {
+                fileStorageService.deleteFile(media.getFileName());
+            }
+            
+            // Finally delete the post
+            postRepository.delete(post);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete post: " + e.getMessage(), e);
         }
-        
-        postRepository.delete(post);
     }
     
     @Transactional

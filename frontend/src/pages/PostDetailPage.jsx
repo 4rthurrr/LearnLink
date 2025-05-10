@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getPostById, toggleLike, getComments, addComment } from '../api/postApi';
+import { getPostById, toggleLike, getComments, addComment, updateComment, deleteComment } from '../api/postApi';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../contexts/AuthContext';
+import Comment from '../components/post/Comment';
 
 const PostDetailPage = () => {
   const { postId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
@@ -71,6 +74,16 @@ const PostDetailPage = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCommentUpdate = (updatedComment) => {
+    setComments(comments.map(comment => 
+      comment.id === updatedComment.id ? updatedComment : comment
+    ));
+  };
+
+  const handleCommentDelete = (commentId) => {
+    setComments(comments.filter(comment => comment.id !== commentId));
   };
 
   const formatDate = (dateString) => {
@@ -275,28 +288,14 @@ const PostDetailPage = () => {
           ) : (
             <div className="space-y-6">
               {comments.map((comment) => (
-                <div key={comment.id} className="border-b border-gray-100 pb-6 last:border-0 last:pb-0">
-                  <div className="flex">
-                    <Link to={`/profile/${comment.user.id}`} className="flex-shrink-0">
-                      <img 
-                        className="h-10 w-10 rounded-full" 
-                        src={comment.user.profilePicture || "https://via.placeholder.com/150"} 
-                        alt={comment.user.name} 
-                      />
-                    </Link>
-                    <div className="ml-3 flex-1">
-                      <div className="flex items-center justify-between">
-                        <Link to={`/profile/${comment.user.id}`} className="text-sm font-medium text-gray-900 hover:underline">
-                          {comment.user.name}
-                        </Link>
-                        <span className="text-xs text-gray-500">
-                          {formatDate(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-gray-700">{comment.content}</p>
-                    </div>
-                  </div>
-                </div>
+                <Comment 
+                  key={comment.id}
+                  comment={comment}
+                  currentUserId={currentUser?.id}
+                  postAuthorId={post.author.id}
+                  onCommentUpdate={handleCommentUpdate}
+                  onCommentDelete={handleCommentDelete}
+                />
               ))}
             </div>
           )}

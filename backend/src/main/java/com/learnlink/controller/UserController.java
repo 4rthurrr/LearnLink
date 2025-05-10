@@ -2,6 +2,7 @@ package com.learnlink.controller;
 
 import com.learnlink.dto.response.ApiResponse;
 import com.learnlink.dto.response.UserProfileResponse;
+import com.learnlink.dto.response.UserSummaryDTO;
 import com.learnlink.model.User;
 import com.learnlink.service.UserService;
 import com.learnlink.service.FileStorageService;
@@ -83,17 +84,17 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/followers")
-    public ResponseEntity<Page<User>> getUserFollowers(
+    public ResponseEntity<Page<UserSummaryDTO>> getUserFollowers(
             @PathVariable Long userId,
             Pageable pageable) {
-        return ResponseEntity.ok(userService.getFollowers(userId, pageable));
+        return ResponseEntity.ok(userService.getFollowersDTO(userId, pageable));
     }
 
     @GetMapping("/{userId}/following")
-    public ResponseEntity<Page<User>> getUserFollowing(
+    public ResponseEntity<Page<UserSummaryDTO>> getUserFollowing(
             @PathVariable Long userId,
             Pageable pageable) {
-        return ResponseEntity.ok(userService.getFollowing(userId, pageable));
+        return ResponseEntity.ok(userService.getFollowingDTO(userId, pageable));
     }
 
     @GetMapping("/{userId}/follow/status")
