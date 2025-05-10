@@ -1,18 +1,36 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { toggleLike } from '../../api/postApi';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { toggleLike, deletePost } from '../../api/postApi';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '../../contexts/AuthContext';
 
-const PostCard = ({ post }) => {
-  // Move all useState hooks to the top level - no conditionals
+const PostCard = ({ post, onPostDelete }) => {
+  const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [liked, setLiked] = useState(post?.isLikedByCurrentUser || false);
   const [likesCount, setLikesCount] = useState(post?.likesCount || 0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
-  // Add a check for post being undefined AFTER the hooks
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuRef]);
+
   if (!post) {
-    return null; // Or return a placeholder/skeleton component
+    return null;
   }
+
+  const isOwnPost = currentUser?.id === post.author.id;
 
   const handleLike = async () => {
     if (isProcessing) return;
@@ -20,7 +38,6 @@ const PostCard = ({ post }) => {
     setIsProcessing(true);
     try {
       const response = await toggleLike(post.id);
-      // Use the values from the response instead of assuming the toggle happened
       setLiked(response.liked);
       setLikesCount(response.likesCount);
     } catch (error) {
@@ -30,43 +47,129 @@ const PostCard = ({ post }) => {
     }
   };
 
+  const handleEdit = () => {
+    try {
+      // Ensure we're using a valid ID format
+      const numericPostId = Number(post.id);
+      
+      if (isNaN(numericPostId)) {
+        throw new Error(`Invalid post ID format: ${post.id}`);
+      }
+      
+      console.log(`Navigating to edit post with ID: ${numericPostId}`);
+      navigate(`/edit-post/${numericPostId}`);
+    } catch (error) {
+      console.error('Error handling edit navigation:', error);
+      alert(`Failed to navigate to edit page: ${error.message}`);
+    }
+    setMenuOpen(false);
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm('Are you sure you want to delete this post?')) {
+      try {
+        setIsProcessing(true);
+        
+        // Ensure we're using a valid ID format
+        const numericPostId = Number(post.id);
+        
+        if (isNaN(numericPostId)) {
+          throw new Error(`Invalid post ID format: ${post.id}`);
+        }
+        
+        console.log(`Attempting to delete post with ID: ${numericPostId}`);
+        console.log('Post object:', post);
+        
+        // Call the API to delete the post
+        await deletePost(numericPostId);
+        
+        console.log(`Post ${numericPostId} successfully deleted`);
+        
+        // Notify parent component about the deletion
+        if (onPostDelete) {
+          onPostDelete(numericPostId);
+        } else {
+          console.warn('No onPostDelete callback provided');
+        }
+        
+        // Show success message
+        alert('Post deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting post:', error);
+        console.error('Error message:', error.message);
+        
+        if (error.response) {
+          console.error('Server response:', error.response.data);
+          console.error('Status code:', error.response.status);
+        }
+        
+        alert(`Failed to delete post: ${error.message || 'Unknown error occurred'}`);
+      } finally {
+        setIsProcessing(false);
+        setMenuOpen(false);
+      }
+    } else {
+      // User cancelled the deletion
+      setMenuOpen(false);
+    }
+  };
+
   const renderMedia = () => {
     if (!post.media || post.media.length === 0) return null;
 
-    // Show the first media item
-    const media = post.media[0];
-    if (media.type === 'IMAGE') {
-      return (
-        <div className="mt-4">
-          <img 
-            src={media.fileUrl} 
-            alt="Post media" 
-            className="rounded-lg object-cover w-full max-h-96" 
-          />
-          {post.media.length > 1 && (
-            <div className="mt-1 text-sm text-gray-500">
-              +{post.media.length - 1} more {post.media.length === 2 ? 'file' : 'files'}
+    return (
+      <div className="mt-4">
+        <div className={`grid ${post.media.length === 1 ? 'grid-cols-1' : 
+                             post.media.length === 2 ? 'grid-cols-2' :
+                             post.media.length === 3 ? 'grid-cols-3' :
+                             post.media.length === 4 ? 'grid-cols-2 grid-rows-2' :
+                             'grid-cols-3 grid-rows-2'} gap-2`}>
+          {post.media.slice(0, 6).map((media, index) => {
+            if (media.type === 'IMAGE') {
+              return (
+                <div key={index} className={`${(post.media.length === 3 && index === 0) || (post.media.length >= 5 && index === 0) ? 'col-span-2 row-span-2' : ''} relative rounded-lg overflow-hidden`}>
+                  <img 
+                    src={media.fileUrl} 
+                    alt={`Post media ${index + 1}`} 
+                    className="h-full w-full object-cover aspect-square"
+                  />
+                </div>
+              );
+            } else if (media.type === 'VIDEO') {
+              return (
+                <div key={index} className={`${(post.media.length === 3 && index === 0) || (post.media.length >= 5 && index === 0) ? 'col-span-2 row-span-2' : ''} relative rounded-lg overflow-hidden`}>
+                  <video 
+                    src={media.fileUrl} 
+                    className="h-full w-full object-cover aspect-square" 
+                    controls
+                  />
+                  <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs p-1 rounded-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 inline-block mr-1">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Video
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })}
+          
+          {post.media.length > 6 && (
+            <div className="relative rounded-lg overflow-hidden bg-gray-200">
+              <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white font-medium">
+                +{post.media.length - 6} more
+              </div>
+              <img 
+                src={post.media[6].fileUrl} 
+                alt="Additional media" 
+                className="h-full w-full object-cover opacity-60 aspect-square"
+              />
             </div>
           )}
         </div>
-      );
-    } else if (media.type === 'VIDEO') {
-      return (
-        <div className="mt-4">
-          <video 
-            src={media.fileUrl} 
-            className="rounded-lg w-full max-h-96" 
-            controls
-          />
-          {post.media.length > 1 && (
-            <div className="mt-1 text-sm text-gray-500">
-              +{post.media.length - 1} more {post.media.length === 2 ? 'file' : 'files'}
-            </div>
-          )}
-        </div>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
   const renderProgress = () => {
@@ -177,12 +280,39 @@ const PostCard = ({ post }) => {
             </Link>
           </div>
 
-          <Link 
-            to={`/post/${post.id}`} 
-            className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
-          >
-            View details
-          </Link>
+          <div className="flex items-center space-x-2">
+            <Link 
+              to={`/post/${post.id}`} 
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              View details
+            </Link>
+
+            {isOwnPost && (
+              <div className="flex items-center">
+                <button 
+                  onClick={handleEdit}
+                  className="ml-2 px-2 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md flex items-center"
+                  disabled={isProcessing}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+                <button 
+                  onClick={handleDelete}
+                  className="ml-2 px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center"
+                  disabled={isProcessing}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

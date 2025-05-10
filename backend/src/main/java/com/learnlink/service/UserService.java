@@ -1,6 +1,7 @@
 package com.learnlink.service;
 
 import com.learnlink.dto.response.UserProfileResponse;
+import com.learnlink.dto.response.UserSummaryDTO;
 import com.learnlink.exception.ResourceNotFoundException;
 import com.learnlink.model.Follow;
 import com.learnlink.model.User;
@@ -141,6 +142,22 @@ public class UserService {
         
         return followRepository.findFollowingByFollower(user, pageable)
                 .map(Follow::getFollowing);
+    }
+    
+    public Page<UserSummaryDTO> getFollowersDTO(Long userId, Pageable pageable) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        return followRepository.findFollowersByFollowing(user, pageable)
+                .map(follow -> UserSummaryDTO.fromUser(follow.getFollower()));
+    }
+    
+    public Page<UserSummaryDTO> getFollowingDTO(Long userId, Pageable pageable) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        return followRepository.findFollowingByFollower(user, pageable)
+                .map(follow -> UserSummaryDTO.fromUser(follow.getFollowing()));
     }
     
     public User getUserById(Long userId) {

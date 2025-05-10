@@ -320,6 +320,30 @@ const ProfilePage = () => {
     }
   };
 
+  const handlePostDelete = async (postId) => {
+    try {
+      // Update posts list by filtering out the deleted post
+      setPosts(prev => ({
+        ...prev,
+        content: prev.content.filter(post => post.id !== postId)
+      }));
+      
+      // Update the user's post count in the profile
+      if (userProfile) {
+        setUserProfile(prev => ({
+          ...prev,
+          postsCount: Math.max(0, prev.postsCount - 1)
+        }));
+      }
+      
+      // Show success message
+      alert('Post deleted successfully');
+    } catch (err) {
+      console.error('Error handling post deletion:', err);
+      setError('Failed to delete post');
+    }
+  };
+
   const openFollowsModal = (type) => {
     setFollowsModal({
       isOpen: true,
@@ -463,14 +487,30 @@ const ProfilePage = () => {
               
               {/* Stats */}
               <div className="mt-4 flex flex-wrap gap-6">
-                <div className="flex items-center">
+                <button 
+                  onClick={() => openFollowsModal('followers')}
+                  className="flex items-center hover:bg-gray-50 p-2 rounded transition-colors group"
+                >
                   <span className="text-lg font-semibold text-gray-900">{userProfile.followersCount}</span>
-                  <span className="ml-2 text-sm text-gray-500">Followers</span>
-                </div>
-                <div className="flex items-center">
+                  <span className="ml-2 text-sm text-gray-500 group-hover:text-indigo-600 transition-colors flex items-center">
+                    Followers
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+                <button 
+                  onClick={() => openFollowsModal('following')}
+                  className="flex items-center hover:bg-gray-50 p-2 rounded transition-colors group"
+                >
                   <span className="text-lg font-semibold text-gray-900">{userProfile.followingCount}</span>
-                  <span className="ml-2 text-sm text-gray-500">Following</span>
-                </div>
+                  <span className="ml-2 text-sm text-gray-500 group-hover:text-indigo-600 transition-colors flex items-center">
+                    Following
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
                 <div className="flex items-center">
                   <span className="text-lg font-semibold text-gray-900">{userProfile.postsCount}</span>
                   <span className="ml-2 text-sm text-gray-500">Posts</span>
@@ -532,7 +572,7 @@ const ProfilePage = () => {
               <div>
                 <div className="grid gap-6 md:grid-cols-2">
                   {posts.content.map(post => (
-                    <PostCard key={post.id} post={post} />
+                    <PostCard key={post.id} post={post} onPostDelete={handlePostDelete} />
                   ))}
                 </div>
                 {hasMorePosts && (
