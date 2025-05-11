@@ -1,0 +1,14 @@
+﻿{
+    "version":  "1.0.0",
+    "buildTimestamp":  "2025-05-11T14:04:38.8265680+05:30",
+    "systemData":  [
+
+                   ],
+    "appConfig":  {
+                      "features":  {
+                                       "analytics":  true,
+                                       "notifications":  true,
+                                       "recommendations":  true
+                                   }
+                  }
+}
