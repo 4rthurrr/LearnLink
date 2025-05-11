@@ -4,7 +4,7 @@ import { toggleLike, deletePost } from '../../api/postApi';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 
-const PostCard = ({ post, onPostDelete }) => {
+const PostCard = ({ post, onPostDelete, showActions = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [liked, setLiked] = useState(post?.isLikedByCurrentUser || false);
@@ -288,7 +288,7 @@ const PostCard = ({ post, onPostDelete }) => {
               View details
             </Link>
 
-            {isOwnPost && (
+            {showActions && isOwnPost && (
               <div className="flex items-center">
                 <button 
                   onClick={handleEdit}

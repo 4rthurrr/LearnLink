@@ -28,8 +28,20 @@ const SearchPage = () => {
     setLoading(true);
     setError('');
     try {
+      console.log('Searching for:', searchQuery);
       const data = await searchGlobal(searchQuery);
-      setResults(data);
+      console.log('Search results:', data);
+      
+      // Handle the response structure from the API
+      // Ensure we have the correct data structure even if the API returns pageable results
+      const formattedResults = {
+        users: data.users?.content || data.users || [],
+        posts: data.posts?.content || data.posts || [],
+        learningPlans: data.learningPlans?.content || data.learningPlans || []
+      };
+      
+      console.log('Formatted results:', formattedResults);
+      setResults(formattedResults);
     } catch (error) {
       console.error('Error searching:', error);
       setError('Failed to perform search. Please try again.');

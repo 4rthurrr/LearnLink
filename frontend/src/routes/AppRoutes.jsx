@@ -12,6 +12,7 @@ import LearningPlanPage from '../pages/LearningPlanPage';
 import CreateLearningPlanPage from '../pages/CreateLearningPlanPage';
 import NotificationsPage from '../pages/NotificationsPage';
 import AnalyticsDashboardPage from '../pages/AnalyticsDashboardPage';
+import SearchPage from '../pages/SearchPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import Layout from '../components/common/Layout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -40,6 +41,7 @@ const AppRoutes = () => {
         <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
         <Route path="notifications" element={<ProtectedRoute component={NotificationsPage} />} />
         <Route path="analytics" element={<ProtectedRoute component={AnalyticsDashboardPage} />} />
+        <Route path="search" element={<ProtectedRoute component={SearchPage} />} />
       </Route>
       
       <Route path="*" element={<NotFoundPage />} />

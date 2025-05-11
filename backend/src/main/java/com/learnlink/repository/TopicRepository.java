@@ -11,8 +11,9 @@ import java.util.List;
 public interface TopicRepository extends JpaRepository<Topic, Long> {
     
     List<Topic> findByLearningPlanOrderByOrderIndexAsc(LearningPlan learningPlan);
-    
-    long countByLearningPlan(LearningPlan learningPlan);
+      long countByLearningPlan(LearningPlan learningPlan);
     
     long countByLearningPlanAndCompletionStatus(LearningPlan learningPlan, Topic.CompletionStatus completionStatus);
+    
+    List<Topic> findByLearningPlanId(Long learningPlanId);
 }

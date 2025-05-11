@@ -13,6 +13,7 @@ import { deleteLearningPlan } from '../api/learningPlanApi';
 import PostCard from '../components/post/PostCard';
 import LearningPlanCard from '../components/learningPlan/LearningPlanCard';
 import FollowsModal from '../components/user/FollowsModal';
+import ActivityFeed from '../components/user/ActivityFeed';
 import '../assets/css/global.css';
 
 const ProfilePage = () => {
@@ -572,7 +573,7 @@ const ProfilePage = () => {
               <div>
                 <div className="grid gap-6 md:grid-cols-2">
                   {posts.content.map(post => (
-                    <PostCard key={post.id} post={post} onPostDelete={handlePostDelete} />
+                    <PostCard key={post.id} post={post} onPostDelete={handlePostDelete} showActions={true} />
                   ))}
                 </div>
                 {hasMorePosts && (
@@ -663,13 +664,10 @@ const ProfilePage = () => {
           </div>
         )}
 
-        {/* Activity Tab (placeholder for now) */}
+        {/* Activity Tab */}
         {activeTab === 'activity' && (
-          <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-900">Activity feed coming soon</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              This feature will show recent activity such as likes, comments, and completed learning plans.
-            </p>
+          <div>
+            <ActivityFeed userId={userId} isOwnProfile={isOwnProfile} />
           </div>
         )}
       </div>

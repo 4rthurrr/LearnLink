@@ -11,8 +11,9 @@ import java.util.List;
 public interface ResourceRepository extends JpaRepository<Resource, Long> {
     
     List<Resource> findByTopic(Topic topic);
-    
-    long countByTopic(Topic topic);
+      long countByTopic(Topic topic);
     
     long countByTopicAndIsCompleted(Topic topic, Boolean isCompleted);
+    
+    List<Resource> findByTopicId(Long topicId);
 }

@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@lombok.extern.slf4j.Slf4j
 public class PostService {
 
     private final PostRepository postRepository;
@@ -34,6 +35,7 @@ public class PostService {
     private final LikeService likeService;
     private final CommentService commentService;
     private final LikeRepository likeRepository;
+    private final UserActivityService userActivityService;
 
     @Transactional
     public PostResponse createPost(PostRequest postRequest, List<MultipartFile> files, String currentUserEmail) {
@@ -105,8 +107,12 @@ public class PostService {
     }
 
     public Page<PostResponse> searchPosts(String query, Pageable pageable, User currentUser) {
+        if (query == null || query.trim().isEmpty()) {
+            return Page.empty(pageable);
+        }
+        
         // Search posts by title or content containing the query string
-        Page<Post> posts = postRepository.findByTitleContainingOrContentContainingOrderByCreatedAtDesc(
+        Page<Post> posts = postRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCaseOrderByCreatedAtDesc(
             query, query, pageable);
         
         return posts.map(this::mapToPostResponse);
@@ -205,6 +211,38 @@ public class PostService {
         media.getPost().getMedia().remove(media);
         mediaRepository.delete(media);
     }
+      /**
+     * Updates post learning progress percentage when related learning plan progress changes
+     * @param learningPlanId The ID of the learning plan
+     * @param progressPercentage The new progress percentage
+     * @param userId The user ID who owns the learning plan
+     */
+  @Transactional
+  public void updatePostsWithLearningPlanProgress(Long learningPlanId, Integer progressPercentage, Long userId) {
+      if (userId == null) {
+          return; // No user, so no posts to update
+      }
+      
+      // Find posts by the user that might be related to this learning plan
+      List<Post> userPosts = postRepository.findByAuthorId(userId);
+      
+      if (userPosts != null && !userPosts.isEmpty()) {
+          boolean postsUpdated = false;
+          for (Post post : userPosts) {
+              // Update all posts by this user with the latest progress percentage
+              // This ensures even posts that were created before progress was made will show progress
+              post.setLearningProgressPercent(progressPercentage);
+              postsUpdated = true;
+          }
+          
+          // Only save if we actually updated any posts
+          if (postsUpdated) {
+              postRepository.saveAll(userPosts);
+              log.info("Updated learning progress to {}% in {} posts for user ID: {}", 
+                      progressPercentage, userPosts.size(), userId);
+          }
+      }
+  }
     
     private Media.MediaType determineMediaType(String contentType) {
         if (contentType == null) {

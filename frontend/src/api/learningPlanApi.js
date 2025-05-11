@@ -40,43 +40,39 @@ export const getLearningPlanById = async (planId) => {
 };
 
 export const createLearningPlan = async (planData) => {
-  // DEBUGGING: Compare with what Postman would send
+  // DEBUGGING: Log the payload for resources
   console.log('Frontend LearningPlan payload:', JSON.stringify(planData, null, 2));
   
-  const postmanExample = {
-    "title": "Learn Spring Boot",
-    "description": "A comprehensive plan to learn Spring Boot",
-    "category": "PROGRAMMING",
-    "isPublic": true,
-    "estimatedDays": 30,
-    "topics": [
-      {
-        "title": "Spring Boot Basics",
-        "description": "Learn the basics of Spring Boot",
-        "orderIndex": 0
-      },
-      {
-        "title": "REST API Development",
-        "description": "Learn how to build REST APIs",
-        "orderIndex": 1
+  // Log specific check for resources in payload
+  if (planData.topics) {
+    planData.topics.forEach((topic, i) => {
+      if (topic.resources) {
+        console.log(`Topic ${i} (${topic.title}) has ${topic.resources.length} resources in payload:`, 
+          JSON.stringify(topic.resources, null, 2));
+      } else {
+        console.warn(`Topic ${i} (${topic.title}) has no resources array in payload`);
       }
-    ]
-  };
-  
-  console.log('Postman example payload:', JSON.stringify(postmanExample, null, 2));
-  
-  // First, try to send to our echo endpoint to debug
-  try {
-    const echoResponse = await apiClient.post('/api/debug/echo', planData);
-    console.log('Echo response:', echoResponse.data);
-  } catch (error) {
-    console.log('Echo failed, continuing with actual request');
+    });
   }
   
   // Now, send the actual request
   try {
     const response = await apiClient.post('/api/learning-plans', planData);
     console.log('Learning plan created successfully:', response.data);
+    
+    // Check if the response includes topics and resources
+    if (response.data.topics) {
+      response.data.topics.forEach((topic, i) => {
+        if (topic.resources) {
+          console.log(`RESPONSE: Topic ${i} (${topic.title}) has ${topic.resources.length} resources`);
+        } else {
+          console.warn(`RESPONSE: Topic ${i} (${topic.title}) missing resources array!`);
+        }
+      });
+    } else {
+      console.warn('RESPONSE: Learning plan response does not include topics array!');
+    }
+    
     return response.data;
   } catch (error) {
     console.error('Error creating learning plan:', error.response?.data || error.message);
@@ -105,15 +101,31 @@ export const updateTopic = async (planId, topicId, topicData) => {
 };
 
 export const updateTopicStatus = async (planId, topicId, status) => {
-  const response = await apiClient.patch(`/api/learning-plans/${planId}/topics/${topicId}/status?status=${status}`);
-  return response.data;
+  try {
+    console.log(`Updating topic status for plan ${planId}, topic ${topicId} to ${status}`);
+    const response = await apiClient.patch(
+      `/api/learning-plans/${planId}/topics/${topicId}/user-progress?status=${status}`
+    );
+    console.log('Topic status updated successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating topic status:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export const updateResourceStatus = async (planId, topicId, resourceId, isCompleted) => {
-  const response = await apiClient.patch(
-    `/api/learning-plans/${planId}/topics/${topicId}/resources/${resourceId}/status?isCompleted=${isCompleted}`
-  );
-  return response.data;
+  try {
+    console.log(`Updating resource status for plan ${planId}, topic ${topicId}, resource ${resourceId} to ${isCompleted}`);
+    const response = await apiClient.patch(
+      `/api/learning-plans/${planId}/topics/${topicId}/resources/${resourceId}/user-progress?isCompleted=${isCompleted}`
+    );
+    console.log('Resource status updated successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating resource status:', error.response?.data || error.message);
+    throw error;
+  }
 };
 
 export const addResource = async (planId, topicId, resourceData) => {

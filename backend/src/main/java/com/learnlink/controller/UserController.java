@@ -1,10 +1,12 @@
 package com.learnlink.controller;
 
 import com.learnlink.dto.response.ApiResponse;
+import com.learnlink.dto.response.UserActivityResponse;
 import com.learnlink.dto.response.UserProfileResponse;
 import com.learnlink.dto.response.UserSummaryDTO;
 import com.learnlink.model.User;
 import com.learnlink.service.UserService;
+import com.learnlink.service.UserActivityService;
 import com.learnlink.service.FileStorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -25,6 +27,7 @@ public class UserController {
 
     private final UserService userService;
     private final FileStorageService fileStorageService;
+    private final UserActivityService userActivityService;
 
     @GetMapping("/{userId}")
     public ResponseEntity<UserProfileResponse> getUserProfile(
@@ -97,13 +100,33 @@ public class UserController {
         return ResponseEntity.ok(userService.getFollowingDTO(userId, pageable));
     }
 
-    @GetMapping("/{userId}/follow/status")
-    public ResponseEntity<Map<String, Boolean>> checkFollowStatus(
+    @GetMapping("/{userId}/follow/status")    public ResponseEntity<Map<String, Boolean>> checkFollowStatus(
             @PathVariable Long userId,
             @AuthenticationPrincipal User currentUser) {
         boolean isFollowing = userService.checkIfUserIsFollowing(userId, currentUser.getEmail());
         Map<String, Boolean> response = new HashMap<>();
         response.put("isFollowing", isFollowing);
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/{userId}/activities")
+    public ResponseEntity<Page<UserActivityResponse>> getUserActivities(
+            @PathVariable Long userId,
+            Pageable pageable) {
+        return ResponseEntity.ok(userActivityService.getUserActivities(userId, pageable));
+    }
+    
+    @GetMapping("/{userId}/learning-progress")
+    public ResponseEntity<Page<UserActivityResponse>> getUserLearningProgress(
+            @PathVariable Long userId,
+            Pageable pageable) {
+        return ResponseEntity.ok(userActivityService.getUserLearningProgress(userId, pageable));
+    }
+    
+    @GetMapping("/{userId}/social-activity")
+    public ResponseEntity<Page<UserActivityResponse>> getUserSocialActivity(
+            @PathVariable Long userId,
+            Pageable pageable) {
+        return ResponseEntity.ok(userActivityService.getUserSocialActivity(userId, pageable));
     }
 }
