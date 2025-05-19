@@ -1,12 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Formik, Form, Field, ErrorMessage } from 'formik';
 import * as Yup from 'yup';
+import { useLocation, useNavigate } from 'react-router-dom';
 import OAuthButton from '../components/auth/OAuthButton';
 
 const LoginPage = ({ signup = false }) => {
   const [isSignup, setIsSignup] = useState(signup);
+  const [oauthError, setOauthError] = useState('');
   const { loginUser, registerUser, error } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  useEffect(() => {
+    // Clear any OAuth errors when component unmounts or when isSignup changes
+    return () => {
+      setOauthError('');
+    };
+  }, [isSignup]);
+  
+  useEffect(() => {
+    // Check if redirected from OAuth with error
+    if (location.state?.error) {
+      console.log('OAuth error from state:', location.state.error);
+      setOauthError(location.state.error);
+      // Clear the location state to prevent the error from persisting on refresh
+      navigate(location.pathname, { replace: true });
+    }
+    
+    // Check URL params for OAuth errors
+    const params = new URLSearchParams(location.search);
+    if (params.get('expired') === 'true') {
+      setOauthError('Your session has expired. Please log in again.');
+      // Clear the URL parameter to prevent the error from persisting on refresh
+      navigate(location.pathname, { replace: true });
+    }
+    
+    const errorParam = params.get('error');
+    if (errorParam) {
+      console.log('OAuth error from URL:', errorParam);
+      setOauthError(decodeURIComponent(errorParam));
+      // Clear the URL parameter to prevent the error from persisting on refresh
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location, navigate]);
 
   const loginSchema = Yup.object({
     email: Yup.string().email('Invalid email address').required('Email is required'),
@@ -49,11 +86,23 @@ const LoginPage = ({ signup = false }) => {
               {isSignup ? 'Sign in' : 'Sign up'}
             </button>
           </p>
-        </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
-            {error}
+        </div>        {(error || oauthError) && (
+          <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+            <div className="flex items-start">
+              <div className="flex-shrink-0 mt-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm">{error || oauthError}</p>
+                {oauthError && oauthError.includes('authentication failed') && (
+                  <p className="text-xs mt-1">
+                    This may happen if you denied access or there was a problem with the authentication server.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -141,10 +190,7 @@ const LoginPage = ({ signup = false }) => {
                 Or continue with
               </span>
             </div>
-          </div>
-
-          <div className="mt-6">
-            <div className="space-y-2">
+          </div>          <div className="mt-6">            <div className="space-y-2">
               <OAuthButton provider="Google" />
             </div>
           </div>

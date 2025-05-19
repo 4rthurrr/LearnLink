@@ -49,10 +49,9 @@ public class UserActivity {
     
     @Column(name = "resource_title")
     private String resourceTitle;
-    
-    // For POST_LIKE, POST_COMMENT
+      // For POST_LIKE, POST_COMMENT
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "post_id")
+    @JoinColumn(name = "post_id", foreignKey = @ForeignKey(name = "FK_POST_USER_ACTIVITY"))
     private Post post;
     
     // For POST_COMMENT

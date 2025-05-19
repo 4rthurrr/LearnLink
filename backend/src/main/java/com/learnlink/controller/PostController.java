@@ -3,6 +3,7 @@ package com.learnlink.controller;
 import com.learnlink.dto.request.PostRequest;
 import com.learnlink.dto.response.ApiResponse;
 import com.learnlink.dto.response.PostResponse;
+import com.learnlink.exception.ResourceNotFoundException;
 import com.learnlink.model.Post;
 import com.learnlink.model.User;
 import com.learnlink.service.PostService;
@@ -11,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,6 +38,7 @@ public class PostController {
         return ResponseEntity.ok(postResponse);
     }
 
+    //get post by id
     @GetMapping("/{postId}")
     public ResponseEntity<PostResponse> getPostById(
             @PathVariable Long postId, 
@@ -46,6 +49,7 @@ public class PostController {
         return ResponseEntity.ok(postResponse);
     }
 
+    //get all post
     @GetMapping
     public ResponseEntity<Page<PostResponse>> getAllPosts(
             @PageableDefault(size = 10) Pageable pageable,
@@ -91,8 +95,21 @@ public class PostController {
             @PathVariable Long postId,
             @AuthenticationPrincipal User currentUser) {
         
-        postService.deletePost(postId, currentUser.getEmail());
-        return ResponseEntity.ok(new ApiResponse(true, "Post deleted successfully"));
+        try {
+            postService.deletePost(postId, currentUser.getEmail());
+            return ResponseEntity.ok(new ApiResponse(true, "Post deleted successfully"));
+        } catch (ResourceNotFoundException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse(false, ex.getMessage()));
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(new ApiResponse(false, ex.getMessage()));
+        } catch (Exception ex) {
+            // Log the full stack trace for debugging
+            ex.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponse(false, "An error occurred while deleting the post: " + ex.getMessage()));
+        }
     }
 
     @DeleteMapping("/media/{mediaId}")

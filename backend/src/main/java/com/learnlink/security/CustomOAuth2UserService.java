@@ -6,6 +6,7 @@ import com.learnlink.repository.UserRepository;
 import com.learnlink.security.oauth2.OAuth2UserInfo;
 import com.learnlink.security.oauth2.OAuth2UserInfoFactory;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.InternalAuthenticationServiceException;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -17,20 +18,21 @@ import org.springframework.util.StringUtils;
 import java.util.HashSet;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
-
-    @Override
-    public OAuth2User loadUser(OAuth2UserRequest oAuth2UserRequest) throws OAuth2AuthenticationException {
+    
+    @Override    public OAuth2User loadUser(OAuth2UserRequest oAuth2UserRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(oAuth2UserRequest);
 
         try {
             return processOAuth2User(oAuth2UserRequest, oAuth2User);
         } catch (Exception ex) {
-            throw new InternalAuthenticationServiceException(ex.getMessage(), ex.getCause());
+            log.error("Error processing OAuth2User: {}", ex.getMessage(), ex);
+            throw new InternalAuthenticationServiceException(ex.getMessage(), ex);
         }
     }
 
@@ -55,12 +57,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         " account to login.");
             }
             
-            user = updateExistingUser(user, oAuth2UserInfo);
-        } else {
+            user = updateExistingUser(user, oAuth2UserInfo);        } else {
             user = registerNewUser(oAuth2UserRequest, oAuth2UserInfo);
         }
-
-        return UserPrincipal.create(user, oAuth2User.getAttributes());
+        
+        log.debug("Creating UserPrincipal for user: {} with email: {}", user.getId(), user.getEmail());
+        UserPrincipal userPrincipal = UserPrincipal.create(user, oAuth2User.getAttributes());
+        log.debug("Created UserPrincipal successfully, returning for authentication");
+        return userPrincipal;
     }
 
     private User registerNewUser(OAuth2UserRequest oAuth2UserRequest, OAuth2UserInfo oAuth2UserInfo) {

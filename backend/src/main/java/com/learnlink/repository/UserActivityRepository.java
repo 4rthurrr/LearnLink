@@ -1,12 +1,16 @@
 package com.learnlink.repository;
 
+import com.learnlink.model.Post;
 import com.learnlink.model.User;
 import com.learnlink.model.UserActivity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface UserActivityRepository extends JpaRepository<UserActivity, Long> {
@@ -27,4 +31,16 @@ public interface UserActivityRepository extends JpaRepository<UserActivity, Long
            "a.type = com.learnlink.model.UserActivity$ActivityType.POST_COMMENT) " +
            "ORDER BY a.timestamp DESC")
     Page<UserActivity> findSocialActivityByUserId(Long userId, Pageable pageable);
+      // Delete all activities related to a post
+    void deleteByPost(Post post);    // Delete all activities related to a post by post ID
+    @Query("DELETE FROM UserActivity ua WHERE ua.post.id = :postId")
+    @Modifying
+    @Transactional
+    void deleteByPostId(@Param("postId") Long postId);
+    
+    // Native SQL query to delete user activities related to a post
+    @Query(value = "DELETE FROM user_activities WHERE post_id = :postId", nativeQuery = true)
+    @Modifying
+    @Transactional
+    void deleteByPostIdNative(@Param("postId") Long postId);
 }

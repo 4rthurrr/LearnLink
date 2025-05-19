@@ -1,49 +1,87 @@
 import React, { useState, useEffect } from 'react';
 import { getUserActivity, getUserLearningProgress, getUserSocialActivity } from '../../api/activityApi';
 import { format, formatDistanceToNow } from 'date-fns';
+import { mockLearningProgress, mockSocialActivity, mockAllActivities } from '../../utils/mockActivityData';
 
-const ActivityFeed = ({ userId, isOwnProfile }) => {  const [learningProgress, setLearningProgress] = useState({ content: [], loading: true });
+const ActivityFeed = ({ userId, isOwnProfile }) => {
+  const [learningProgress, setLearningProgress] = useState({ content: [], loading: true });
   const [socialActivity, setSocialActivity] = useState({ content: [], loading: true });
   const [allActivities, setAllActivities] = useState({ content: [], loading: true });
   const [activeSection, setActiveSection] = useState('all');
   const [error, setError] = useState('');
-
-  useEffect(() => {
+  const [useMockData, setUseMockData] = useState(false);  useEffect(() => {
     const fetchData = async () => {
       // Set all sections to loading state
       setAllActivities(prev => ({ ...prev, loading: true }));
       setLearningProgress(prev => ({ ...prev, loading: true }));
       setSocialActivity(prev => ({ ...prev, loading: true }));
 
+      let apiErrorOccurred = false;
+
       try {
         // If we're viewing the "all" section, fetch all activities
         if (activeSection === 'all') {
-          const allData = await getUserActivity(userId);
-          setAllActivities({
-            content: allData.content,
-            loading: false
-          });
+          try {
+            const allData = await getUserActivity(userId);
+            setAllActivities({
+              content: allData.content,
+              loading: false
+            });
+          } catch (err) {
+            console.error('Error fetching all activities:', err);
+            apiErrorOccurred = true;
+            setAllActivities({
+              content: useMockData ? mockAllActivities.content : [],
+              loading: false
+            });
+          }
         }
 
         // If we're viewing the "learning" section or it's our first load
         if (activeSection === 'learning' || activeSection === 'all') {
-          const learningData = await getUserLearningProgress(userId);
-          setLearningProgress({
-            content: learningData.content,
-            loading: false
-          });
+          try {
+            const learningData = await getUserLearningProgress(userId);
+            setLearningProgress({
+              content: learningData.content,
+              loading: false
+            });
+          } catch (err) {
+            console.error('Error fetching learning progress:', err);
+            apiErrorOccurred = true;
+            setLearningProgress({
+              content: useMockData ? mockLearningProgress.content : [],
+              loading: false
+            });
+          }
         }
 
         // If we're viewing the "social" section or it's our first load
         if (activeSection === 'social' || activeSection === 'all') {
-          const socialData = await getUserSocialActivity(userId);
-          setSocialActivity({
-            content: socialData.content,
-            loading: false
-          });
+          try {
+            const socialData = await getUserSocialActivity(userId);
+            setSocialActivity({
+              content: socialData.content,
+              loading: false
+            });
+          } catch (err) {
+            console.error('Error fetching social activity:', err);
+            apiErrorOccurred = true;
+            setSocialActivity({
+              content: useMockData ? mockSocialActivity.content : [],
+              loading: false
+            });
+          }
         }
+
+        // If any API call failed and we're not already using mock data, suggest switching to mock data
+        if (apiErrorOccurred && !useMockData) {
+          setError('Unable to load activity data from the server. Would you like to see sample data instead?');
+        } else {
+          setError('');
+        }
+
       } catch (err) {
-        console.error('Error fetching activity data:', err);
+        console.error('Error in activity fetch operation:', err);
         setError('Failed to load activity data');
         
         // Set loading to false for all data types
@@ -54,7 +92,7 @@ const ActivityFeed = ({ userId, isOwnProfile }) => {  const [learningProgress, s
     };
 
     fetchData();
-  }, [userId, activeSection]);
+  }, [userId, activeSection, useMockData]);
 
   const formatDate = (dateString) => {
     try {
@@ -239,9 +277,35 @@ const ActivityFeed = ({ userId, isOwnProfile }) => {  const [learningProgress, s
   }
 
   const activities = filteredActivities();
-
   return (
-    <div>      {/* Activity filter tabs */}
+    <div>
+      {/* Error message */}
+      {error && (
+        <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">{error}</p>
+              {!useMockData && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => setUseMockData(true)}
+                    className="text-sm font-medium text-yellow-700 hover:text-yellow-600 focus:outline-none"
+                  >
+                    Show sample activity data
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Activity filter tabs */}
       <div className="mb-6 flex border-b border-gray-200">
         <button 
           onClick={() => setActiveSection('all')}
@@ -279,6 +343,13 @@ const ActivityFeed = ({ userId, isOwnProfile }) => {  const [learningProgress, s
       {activities.length > 0 ? (
         <div className="space-y-4">
           {activities.map(activity => renderActivityItem(activity))}
+          {useMockData && (
+            <div className="text-center mt-4 py-2 bg-blue-50 rounded-lg">
+              <p className="text-xs text-blue-600">
+                Displaying sample activity data for development purposes
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <div className="text-center py-12 bg-gray-50 rounded-lg">
@@ -291,6 +362,14 @@ const ActivityFeed = ({ userId, isOwnProfile }) => {  const [learningProgress, s
               ? "You don't have any recent activity."
               : "This user doesn't have any recent activity."}
           </p>
+          {!useMockData && (
+            <button 
+              onClick={() => setUseMockData(true)}
+              className="mt-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
+            >
+              Show sample data instead
+            </button>
+          )}
         </div>
       )}
     </div>
