@@ -42,16 +42,13 @@ public class SecurityConfig {
             )
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authorizeHttpRequests(authorize -> authorize
+            )            .authorizeHttpRequests(authorize -> authorize
                 .requestMatchers("/api/auth/**", "/oauth2/**").permitAll()
                 .requestMatchers("/api/media/**").permitAll() // Allow media access without authentication
-                .requestMatchers("/api/debug/**").permitAll() // Allow debug endpoints
                 .requestMatchers("/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated()
-            )
-            .oauth2Login(oauth2 -> oauth2
+            ).oauth2Login(oauth2 -> oauth2
                 .authorizationEndpoint(authorization -> authorization
                     .baseUri("/api/auth/oauth2/authorize")
                 )
@@ -63,6 +60,14 @@ public class SecurityConfig {
                 )
                 .successHandler(oAuth2AuthenticationSuccessHandler)
                 .failureHandler(oAuth2AuthenticationFailureHandler)
+            )
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint((request, response, authException) -> {
+                    // Log detailed information about the request that failed
+                    System.out.println("Auth Exception: " + authException.getMessage());
+                    System.out.println("Request URI: " + request.getRequestURI());
+                    unauthorizedHandler.commence(request, response, authException);
+                })
             );
 
         http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

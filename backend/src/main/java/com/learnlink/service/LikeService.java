@@ -21,6 +21,7 @@ public class LikeService {
     private final PostRepository postRepository;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final UserActivityService userActivityService;
     
     @Transactional
     public boolean toggleLike(Long postId, String currentUserEmail) {
@@ -41,9 +42,11 @@ public class LikeService {
             Like like = Like.builder()
                     .user(currentUser)
                     .post(post)
-                    .build();
-            
+                    .build();            
             likeRepository.save(like);
+            
+            // Record post like activity
+            userActivityService.recordPostLike(currentUser, post);
             
             // Create notification for post author (if not the same user)
             if (!post.getAuthor().getId().equals(currentUser.getId())) {

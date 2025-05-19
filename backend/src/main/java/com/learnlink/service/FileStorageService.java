@@ -70,13 +70,21 @@ public class FileStorageService {
             throw new FileStorageException("File not found " + fileName, ex);
         }
     }
-    
-    public void deleteFile(String fileName) {
+      public void deleteFile(String fileName) {
+        if (fileName == null || fileName.trim().isEmpty()) {
+            // Skip if filename is null or empty
+            return;
+        }
+        
         try {
             Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
-            Files.deleteIfExists(filePath);
+            boolean deleted = Files.deleteIfExists(filePath);
+            if (!deleted) {
+                System.out.println("File " + fileName + " does not exist, skipping deletion.");
+            }
         } catch (IOException ex) {
-            throw new FileStorageException("Could not delete file " + fileName, ex);
+            // Log the error but don't throw exception to avoid breaking deletion process
+            System.err.println("Could not delete file " + fileName + ": " + ex.getMessage());
         }
     }
     

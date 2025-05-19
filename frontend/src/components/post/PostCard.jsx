@@ -4,7 +4,7 @@ import { toggleLike, deletePost } from '../../api/postApi';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 
-const PostCard = ({ post, onPostDelete }) => {
+const PostCard = ({ post, onPostDelete, showActions = false }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [liked, setLiked] = useState(post?.isLikedByCurrentUser || false);
@@ -64,9 +64,8 @@ const PostCard = ({ post, onPostDelete }) => {
     }
     setMenuOpen(false);
   };
-
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this post?')) {
+    if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
       try {
         setIsProcessing(true);
         
@@ -78,10 +77,25 @@ const PostCard = ({ post, onPostDelete }) => {
         }
         
         console.log(`Attempting to delete post with ID: ${numericPostId}`);
-        console.log('Post object:', post);
         
-        // Call the API to delete the post
-        await deletePost(numericPostId);
+        // Call the API to delete the post (with retries)
+        let retryCount = 0;
+        const maxRetries = 2;
+        
+        const attemptDelete = async () => {
+          try {
+            return await deletePost(numericPostId);
+          } catch (error) {
+            if (retryCount < maxRetries) {
+              retryCount++;
+              console.log(`Retry attempt ${retryCount} for deleting post ${numericPostId}`);
+              return new Promise(resolve => setTimeout(() => resolve(attemptDelete()), 1000));
+            }
+            throw error;
+          }
+        };
+        
+        await attemptDelete();
         
         console.log(`Post ${numericPostId} successfully deleted`);
         
@@ -93,17 +107,26 @@ const PostCard = ({ post, onPostDelete }) => {
         }
         
         // Show success message
-        alert('Post deleted successfully!');
-      } catch (error) {
+        alert('Post deleted successfully!');      } catch (error) {
         console.error('Error deleting post:', error);
         console.error('Error message:', error.message);
         
-        if (error.response) {
-          console.error('Server response:', error.response.data);
-          console.error('Status code:', error.response.status);
+        // Provide more user-friendly error message
+        let errorMessage = 'Failed to delete post. ';
+        
+        // Check for foreign key constraint error
+        if (error.message && (
+            error.message.includes("foreign key constraint fails") || 
+            error.message.includes("FK9typpph89m1hxq80vq7uov5ig")
+        )) {
+          errorMessage = "This post can't be deleted because it's referenced by user activities. Please try again later or contact support.";
+        } else if (error.message) {
+          errorMessage += error.message;
+        } else {
+          errorMessage += 'Server error occurred. Please try again later.';
         }
         
-        alert(`Failed to delete post: ${error.message || 'Unknown error occurred'}`);
+        alert(errorMessage);
       } finally {
         setIsProcessing(false);
         setMenuOpen(false);
@@ -171,19 +194,18 @@ const PostCard = ({ post, onPostDelete }) => {
       </div>
     );
   };
-
   const renderProgress = () => {
     if (post.learningProgressPercent === null || post.learningProgressPercent === undefined) return null;
     
     return (
-      <div className="mt-4">
-        <div className="flex items-center">
-          <div className="text-sm font-medium text-gray-700 mr-2">Learning Progress:</div>
-          <div className="text-sm font-bold text-indigo-600">{post.learningProgressPercent}%</div>
+      <div className="mt-5 p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-medium text-gray-700">Learning Progress</div>
+          <div className="text-sm font-bold text-primary-600">{post.learningProgressPercent}%</div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+        <div className="w-full bg-gray-200 rounded-full h-3 mt-2 overflow-hidden">
           <div 
-            className="bg-indigo-600 h-2.5 rounded-full" 
+            className="bg-primary-500 h-3 rounded-full transition-all duration-500 ease-out" 
             style={{ width: `${post.learningProgressPercent}%` }}
           ></div>
         </div>
@@ -198,26 +220,32 @@ const PostCard = ({ post, onPostDelete }) => {
       return 'some time ago';
     }
   };
-
   return (
-    <div className="bg-white shadow rounded-lg overflow-hidden mb-6">
+    <div className="bg-white shadow-card rounded-xl overflow-hidden mb-6 transition-transform hover:shadow-lg">
       {/* Post header */}
       <div className="p-5 pb-3 border-b border-gray-100">
         <div className="flex items-center">
           <Link to={`/profile/${post.author.id}`} className="flex-shrink-0">
-            <img 
-              className="h-10 w-10 rounded-full" 
-              src={post.author.profilePicture || "https://via.placeholder.com/150"} 
-              alt={post.author.name} 
-            />
+            <div className="modern-avatar h-10 w-10 rounded-full overflow-hidden border-2 border-white ring-2 ring-primary-100">
+              <img 
+                className="h-full w-full object-cover" 
+                src={post.author.profilePicture || "https://via.placeholder.com/150"} 
+                alt={post.author.name} 
+              />
+            </div>
           </Link>
           <div className="ml-3">
-            <Link to={`/profile/${post.author.id}`} className="text-sm font-medium text-gray-900 hover:underline">
+            <Link to={`/profile/${post.author.id}`} className="text-sm font-medium text-gray-900 hover:text-primary-600 transition-colors">
               {post.author.name}
             </Link>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 flex items-center mt-0.5">
               {formatDate(post.createdAt)}
-              {post.category && ` · ${post.category.toLowerCase()}`}
+              {post.category && (
+                <>
+                  <span className="mx-1">•</span>
+                  <span className="badge-soft">{post.category.toLowerCase()}</span>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -225,87 +253,92 @@ const PostCard = ({ post, onPostDelete }) => {
 
       {/* Post content */}
       <div className="p-5">
-        <Link to={`/post/${post.id}`} className="block">
-          <h3 className="text-lg font-medium text-gray-900 hover:text-indigo-600">
+        <Link to={`/post/${post.id}`} className="block group">
+          <h3 className="text-lg font-medium text-gray-900 group-hover:text-primary-600 transition-colors">
             {post.title}
           </h3>
           <p className="mt-2 text-gray-600 line-clamp-3">{post.content}</p>
         </Link>
         
         {renderMedia()}
-        {renderProgress()}
-
-        {/* Post actions */}
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex space-x-4">
+        {renderProgress()}        {/* Post actions */}
+        <div className="mt-5 pt-4 flex items-center justify-between border-t border-gray-100">
+          <div className="flex space-x-6">
             <button 
               onClick={handleLike}
               disabled={isProcessing}
-              className={`flex items-center space-x-1 text-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:text-indigo-600'} ${liked ? 'text-red-500' : 'text-gray-500'}`}
+              className={`flex items-center space-x-2 text-sm ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:text-primary-600'} ${liked ? 'text-red-500' : 'text-gray-500'} transition-colors`}
             >
-              <svg 
-                className={`h-5 w-5 ${liked ? 'text-red-500 fill-current' : 'text-gray-400'}`} 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20"
-                fill={liked ? "currentColor" : "none"}
-                stroke="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-              <span>{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
+              <span className={`flex items-center justify-center h-8 w-8 rounded-full ${liked ? 'bg-red-100' : 'bg-gray-100'} transition-colors`}>
+                <svg 
+                  className={`h-5 w-5 ${liked ? 'text-red-500 fill-current' : 'text-gray-500'}`} 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 20 20"
+                  fill={liked ? "currentColor" : "none"}
+                  stroke="currentColor"
+                >
+                  <path 
+                    fillRule="evenodd" 
+                    d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" 
+                    clipRule="evenodd" 
+                  />
+                </svg>
+              </span>
+              <span className="font-medium">{likesCount} {likesCount === 1 ? 'like' : 'likes'}</span>
             </button>
 
             <Link 
               to={`/post/${post.id}`} 
-              className="flex items-center space-x-1 text-sm text-gray-500 hover:text-indigo-600"
+              className="flex items-center space-x-2 text-sm text-gray-500 hover:text-primary-600 transition-colors"
             >
-              <svg 
-                className="h-5 w-5 text-gray-400" 
-                xmlns="http://www.w3.org/2000/svg" 
-                viewBox="0 0 20 20" 
-                fill="none" 
-                stroke="currentColor"
-              >
-                <path 
-                  fillRule="evenodd" 
-                  d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" 
-                  clipRule="evenodd" 
-                />
-              </svg>
-              <span>{post.commentsCount || 0} {post.commentsCount === 1 ? 'comment' : 'comments'}</span>
+              <span className="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100">
+                <svg 
+                  className="h-5 w-5 text-gray-500" 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 20 20" 
+                  fill="none" 
+                  stroke="currentColor"
+                >
+                  <path 
+                    fillRule="evenodd" 
+                    d="M18 13V5a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h3l3 3 3-3h3a2 2 0 002-2zM5 7a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm1 3a1 1 0 100 2h3a1 1 0 100-2H6z" 
+                    clipRule="evenodd" 
+                  />
+                </svg>
+              </span>
+              <span className="font-medium">{post.commentsCount || 0} {post.commentsCount === 1 ? 'comment' : 'comments'}</span>
             </Link>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center">
             <Link 
               to={`/post/${post.id}`} 
-              className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+              className="modern-button-outline text-sm font-medium"
             >
               View details
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
             </Link>
 
-            {isOwnPost && (
-              <div className="flex items-center">
+            {showActions && isOwnPost && (
+              <div className="flex items-center ml-2">
                 <button 
                   onClick={handleEdit}
-                  className="ml-2 px-2 py-1 text-sm text-indigo-600 hover:bg-indigo-50 rounded-md flex items-center"
+                  className="ml-2 px-3 py-1.5 text-sm text-primary-600 hover:bg-primary-50 rounded-md flex items-center transition-colors"
                   disabled={isProcessing}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Edit
                 </button>
                 <button 
                   onClick={handleDelete}
-                  className="ml-2 px-2 py-1 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center"
+                  className="ml-2 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-md flex items-center transition-colors"
                   disabled={isProcessing}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-4 w-4 mr-1.5">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                   Delete

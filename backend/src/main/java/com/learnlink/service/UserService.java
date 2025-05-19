@@ -166,9 +166,11 @@ public class UserService {
     }
     
     public Page<UserProfileResponse> searchUsers(String query, Pageable pageable) {
-        // Search users by name or email containing the query string
-        String searchTerm = "%" + query.toLowerCase() + "%";
+        if (query == null || query.trim().isEmpty()) {
+            return Page.empty(pageable);
+        }
         
+        // Search users by name or email containing the query string
         Page<User> users = userRepository.findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(
             query, query, pageable);
         

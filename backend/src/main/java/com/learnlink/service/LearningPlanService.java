@@ -7,14 +7,13 @@ import com.learnlink.dto.response.LearningPlanResponse;
 import com.learnlink.dto.response.TopicResponse;
 import com.learnlink.dto.response.ResourceResponse;
 import com.learnlink.exception.ResourceNotFoundException;
-import com.learnlink.model.LearningPlan;
-import com.learnlink.model.Resource;
-import com.learnlink.model.Topic;
+import com.learnlink.model.*;
 import com.learnlink.model.Topic.CompletionStatus;
-import com.learnlink.model.User;
+import com.learnlink.model.UserProgress;
 import com.learnlink.repository.LearningPlanRepository;
 import com.learnlink.repository.ResourceRepository;
 import com.learnlink.repository.TopicRepository;
+import com.learnlink.repository.UserProgressRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -23,7 +22,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +36,7 @@ public class LearningPlanService {
     private final TopicRepository topicRepository;
     private final ResourceRepository resourceRepository;
     private final UserService userService;
+    private final UserProgressRepository userProgressRepository;
     
     @Transactional
     public LearningPlanResponse createLearningPlan(LearningPlanRequest learningPlanRequest, String currentUserEmail) {
@@ -94,6 +96,13 @@ public class LearningPlanService {
         return mapToLearningPlanResponse(finalLearningPlan);
     }
     
+    /**
+     * Creates a new topic from a request
+     * @param topicRequest The topic request
+     * @param learningPlan The learning plan to add the topic to
+     * @return The created topic
+     */
+    @SuppressWarnings("unused")
     private Topic createTopicFromRequest(TopicRequest topicRequest, LearningPlan learningPlan) {
         Topic topic = Topic.builder()
                 .title(topicRequest.getTitle())
@@ -109,6 +118,124 @@ public class LearningPlanService {
         return topic;
     }
     
+    /**
+     * Maps a learning plan to a response object, including user progress data if available
+     */
+    private LearningPlanResponse mapToLearningPlanResponse(LearningPlan learningPlan) {
+        return mapToLearningPlanResponse(learningPlan, null);
+    }
+    
+    /**
+     * Maps a learning plan to a response object, including user progress data if available
+     */
+    private LearningPlanResponse mapToLearningPlanResponse(LearningPlan learningPlan, User currentUser) {
+        log.debug("Mapping learning plan to response: {}", learningPlan.getId());
+          // Get user progress if user is provided
+        final UserProgress userProgress;
+        if (currentUser != null) {
+            userProgress = userProgressRepository.findByUserAndLearningPlan(currentUser, learningPlan).orElse(null);
+        } else {
+            userProgress = null;
+        }
+        
+        // Get topics and sort them by orderIndex
+        List<LearningPlanResponse.TopicResponse> topicResponses = learningPlan.getTopics().stream()
+            .sorted((t1, t2) -> t1.getOrderIndex().compareTo(t2.getOrderIndex()))
+            .map(topic -> {                // Get topic progress from user progress if available
+                final Topic.CompletionStatus initialTopicStatus = topic.getCompletionStatus();
+                final Date initialTopicCompletionDate = topic.getCompletionDate();
+                
+                // Create final holders for the values that may be updated
+                final Topic.CompletionStatus[] topicStatusHolder = {initialTopicStatus};
+                final Date[] topicCompletionDateHolder = {initialTopicCompletionDate};
+                
+                if (userProgress != null) {
+                    // Find topic progress for the current topic
+                    Optional<UserProgress.TopicProgress> topicProgress = userProgress.getTopicProgress().stream()
+                            .filter(tp -> tp.getTopicId().equals(topic.getId()))
+                            .findFirst();
+                    
+                    // Override with user's progress if available
+                    if (topicProgress.isPresent()) {
+                        topicStatusHolder[0] = topicProgress.get().getStatus();
+                        topicCompletionDateHolder[0] = topicProgress.get().getCompletionDate();
+                    }
+                }
+                
+                // Process resources
+                List<LearningPlanResponse.ResourceResponse> resourceResponses = topic.getResources().stream()
+                        .map(resource -> {                            // Get resource completion status
+                            final boolean initialIsCompleted = resource.getIsCompleted();
+                            final boolean[] isCompletedHolder = {initialIsCompleted};
+                            
+                            // Check user progress for resource if available
+                            if (userProgress != null) {
+                                Optional<UserProgress.ResourceProgress> resourceProgress = userProgress.getResourceProgress().stream()
+                                        .filter(rp -> rp.getResourceId().equals(resource.getId()))
+                                        .findFirst();
+                                
+                                // Override with user's progress if available
+                                if (resourceProgress.isPresent()) {
+                                    isCompletedHolder[0] = resourceProgress.get().getIsCompleted();
+                                }
+                            }
+                              return LearningPlanResponse.ResourceResponse.builder()
+                                    .id(resource.getId())
+                                    .title(resource.getTitle())
+                                    .description(resource.getDescription())
+                                    .url(resource.getUrl())
+                                    .type(resource.getType())
+                                    .isCompleted(isCompletedHolder[0])
+                                    .build();
+                        })
+                        .collect(Collectors.toList());
+                  return LearningPlanResponse.TopicResponse.builder()
+                        .id(topic.getId())
+                        .title(topic.getTitle())
+                        .description(topic.getDescription())
+                        .orderIndex(topic.getOrderIndex())
+                        .completionStatus(topicStatusHolder[0])
+                        .resources(resourceResponses)
+                        .startDate(topic.getStartDate())
+                        .completionDate(topicCompletionDateHolder[0])
+                        .build();
+            })
+            .collect(Collectors.toList());
+        
+        log.debug("Found {} topics for learning plan {}", topicResponses.size(), learningPlan.getId());
+        
+        LearningPlanResponse.UserSummaryResponse creatorResponse = LearningPlanResponse.UserSummaryResponse.builder()
+                .id(learningPlan.getCreator().getId())
+                .name(learningPlan.getCreator().getName())
+                .profilePicture(learningPlan.getCreator().getProfilePicture())
+                .build();
+          // Calculate completion percentage based on user progress if available
+        final Integer initialCompletionPercentage = learningPlan.getCompletionPercentage();
+        final Integer[] completionPercentageHolder = {initialCompletionPercentage};
+        if (userProgress != null) {
+            completionPercentageHolder[0] = userProgress.getCompletionPercentage();
+        }
+        
+        return LearningPlanResponse.builder()
+                .id(learningPlan.getId())
+                .title(learningPlan.getTitle())
+                .description(learningPlan.getDescription())
+                .creator(creatorResponse)
+                .category(learningPlan.getCategory())
+                .topics(topicResponses)
+                .estimatedDays(learningPlan.getEstimatedDays())
+                .completionPercentage(completionPercentageHolder[0])
+                .isPublic(learningPlan.getIsPublic())
+                .startDate(learningPlan.getStartDate())
+                .targetCompletionDate(learningPlan.getTargetCompletionDate())
+                .createdAt(learningPlan.getCreatedAt())
+                .updatedAt(learningPlan.getUpdatedAt())
+                .build();
+    }
+    
+    /**
+     * Gets a learning plan by ID, including the user's progress if the user is not the creator
+     */
     public LearningPlanResponse getLearningPlanById(Long planId, String currentUserEmail) {
         User currentUser = userService.getCurrentUser(currentUserEmail);
         
@@ -120,7 +247,7 @@ public class LearningPlanService {
             throw new IllegalArgumentException("You don't have permission to view this learning plan");
         }
         
-        return mapToLearningPlanResponse(learningPlan);
+        return mapToLearningPlanResponse(learningPlan, currentUser);
     }
     
     public Page<LearningPlanResponse> getLearningPlansByUser(Long userId, Pageable pageable, String currentUserEmail) {
@@ -468,62 +595,12 @@ public class LearningPlanService {
         return publicLearningPlans.map(this::mapToLearningPlanResponse);
     }
     
-    private LearningPlanResponse mapToLearningPlanResponse(LearningPlan learningPlan) {
-        log.debug("Mapping learning plan to response: {}", learningPlan.getId());
-        
-        // Get topics and sort them by orderIndex
-        List<LearningPlanResponse.TopicResponse> topicResponses = learningPlan.getTopics().stream()
-            .sorted((t1, t2) -> t1.getOrderIndex().compareTo(t2.getOrderIndex()))
-            .map(topic -> {
-                List<LearningPlanResponse.ResourceResponse> resourceResponses = topic.getResources().stream()
-                        .map(resource -> LearningPlanResponse.ResourceResponse.builder()
-                                .id(resource.getId())
-                                .title(resource.getTitle())
-                                .description(resource.getDescription())
-                                .url(resource.getUrl())
-                                .type(resource.getType())
-                                .isCompleted(resource.getIsCompleted())
-                                .build())
-                        .collect(Collectors.toList());
-                
-                return LearningPlanResponse.TopicResponse.builder()
-                        .id(topic.getId())
-                        .title(topic.getTitle())
-                        .description(topic.getDescription())
-                        .orderIndex(topic.getOrderIndex())
-                        .completionStatus(topic.getCompletionStatus())
-                        .resources(resourceResponses)
-                        .startDate(topic.getStartDate())
-                        .completionDate(topic.getCompletionDate())
-                        .build();
-            })
-            .collect(Collectors.toList());
-        
-        log.debug("Found {} topics for learning plan {}", topicResponses.size(), learningPlan.getId());
-        
-        LearningPlanResponse.UserSummaryResponse creatorResponse = LearningPlanResponse.UserSummaryResponse.builder()
-                .id(learningPlan.getCreator().getId())
-                .name(learningPlan.getCreator().getName())
-                .profilePicture(learningPlan.getCreator().getProfilePicture())
-                .build();
-        
-        return LearningPlanResponse.builder()
-                .id(learningPlan.getId())
-                .title(learningPlan.getTitle())
-                .description(learningPlan.getDescription())
-                .creator(creatorResponse)
-                .category(learningPlan.getCategory())
-                .topics(topicResponses)
-                .estimatedDays(learningPlan.getEstimatedDays())
-                .completionPercentage(learningPlan.getCompletionPercentage())
-                .isPublic(learningPlan.getIsPublic())
-                .startDate(learningPlan.getStartDate())
-                .targetCompletionDate(learningPlan.getTargetCompletionDate())
-                .createdAt(learningPlan.getCreatedAt())
-                .updatedAt(learningPlan.getUpdatedAt())
-                .build();
-    }
-
+    /**
+     * Maps a topic to a response object
+     * @param topic The topic to map
+     * @return The topic response
+     */
+    @SuppressWarnings("unused")
     private TopicResponse mapToTopicResponse(Topic topic) {
         // Add null check for resources
         List<ResourceResponse> resourceResponses = topic.getResources() == null 

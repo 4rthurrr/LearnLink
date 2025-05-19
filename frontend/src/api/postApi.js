@@ -79,8 +79,20 @@ export const deletePost = async (postId) => {
     return response.data;
   } catch (error) {
     console.error('Error deleting post:', error);
-    console.error('Error response:', error.response || 'No response data');
-    throw error;
+    
+    // Add detailed error logging
+    if (error.response) {
+      console.error('Error status:', error.response.status);
+      console.error('Error data:', error.response.data);
+      
+      // If we get a specific error message from the server, use it
+      if (error.response.data && error.response.data.message) {
+        throw new Error(error.response.data.message);
+      }
+    }
+    
+    // If we couldn't get a specific message, throw a more helpful error
+    throw new Error(`Failed to delete post: ${error.message || 'Server error occurred'}`);
   }
 };
 

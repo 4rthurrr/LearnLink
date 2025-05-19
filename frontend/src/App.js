@@ -4,6 +4,7 @@ import AppRoutes from './routes/AppRoutes';
 import { AuthProvider } from './contexts/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import './assets/css/global.css';
+import './assets/css/modern.css';
 
 function App() {
   return (

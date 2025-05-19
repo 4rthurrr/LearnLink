@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Formik, Form, Field, ErrorMessage, FieldArray } from 'formik';
 import * as Yup from 'yup';
-import { createLearningPlan, getLearningPlanById, updateLearningPlan, uploadResourceFile } from '../api/learningPlanApi';
+import { createLearningPlan, getLearningPlanById, updateLearningPlan, uploadResourceFile, addResource } from '../api/learningPlanApi';
 import { useAuth } from '../contexts/AuthContext';
 
 const CreateLearningPlanPage = () => {
@@ -124,21 +124,34 @@ const CreateLearningPlanPage = () => {
         // Include date fields if they have values
         startDate: values.startDate || null,
         targetCompletionDate: values.targetCompletionDate || null,
-        topics: values.topics.map((topic, index) => ({
-          id: topic.id, // Include ID for existing topics in edit mode
-          title: topic.title,
-          description: topic.description || "",
-          orderIndex: index,
-          resources: topic.resources && topic.resources.map((resource, resourceIndex) => ({
-            id: resource.id, // Include ID for existing resources in edit mode
-            title: resource.title,
-            url: resource.resourceType === 'url' ? resource.url : '', // URL will be updated for file resources
-            type: resource.type,
-            description: resource.description || "",
-            orderIndex: resourceIndex
-          }))
-        }))
+        topics: values.topics.map((topic, index) => {
+          // Create a formatted topic object
+          const formattedTopic = {
+            id: topic.id, // Include ID for existing topics in edit mode
+            title: topic.title,
+            description: topic.description || "",
+            orderIndex: index
+          };
+          
+          // Only include resources if they exist and have items
+          if (topic.resources && topic.resources.length > 0) {
+            formattedTopic.resources = topic.resources.map((resource, resourceIndex) => ({
+              id: resource.id, // Include ID for existing resources in edit mode
+              title: resource.title,
+              url: resource.resourceType === 'url' ? resource.url : '', // URL will be updated for file resources
+              type: resource.type,
+              description: resource.description || "",
+              orderIndex: resourceIndex
+            }));
+          } else {
+            formattedTopic.resources = []; // Ensure resources is always an array
+          }
+          
+          return formattedTopic;
+        })
       };
+      
+      console.log('Formatted values for submission:', JSON.stringify(formattedValues, null, 2));
       
       let learningPlan;
       
@@ -150,32 +163,122 @@ const CreateLearningPlanPage = () => {
         learningPlan = await createLearningPlan(formattedValues);
       }
       
-      // Handle PDF file uploads after the learning plan is created/updated
+      // Check if the response includes topics and resources
+      if (!learningPlan.topics || learningPlan.topics.length === 0) {
+        console.warn('Response missing topics array or has empty topics array');
+      } else {
+        learningPlan.topics.forEach((topic, i) => {
+          if (!topic.resources) {
+            console.warn(`Response topic ${i} (${topic.title}) missing resources array!`);
+          } else if (topic.resources.length === 0) {
+            console.log(`Response topic ${i} (${topic.title}) has empty resources array`);
+          } else {
+            console.log(`Response topic ${i} (${topic.title}) has ${topic.resources.length} resources`);
+          }
+        });
+      }
+      
+      // After creating the learning plan, fetch it again to make sure we have the complete data
       const newPlanId = learningPlan.id || planId;
+      console.log(`Fetching complete learning plan with ID: ${newPlanId}`);
+      const completeLearningPlan = await getLearningPlanById(newPlanId);
+      
+      // Handle PDF file uploads after the learning plan is created/updated
       const fileUploads = [];
       
       // Process all file resources
-      for (let topicIndex = 0; topicIndex < values.topics.length; topicIndex++) {
-        const topic = values.topics[topicIndex];
-        const topicId = learningPlan.topics[topicIndex].id;
-        
-        if (topic.resources) {
-          for (let resourceIndex = 0; resourceIndex < topic.resources.length; resourceIndex++) {
-            const resource = topic.resources[resourceIndex];
-            const resourceId = learningPlan.topics[topicIndex].resources?.[resourceIndex]?.id;
+      if (completeLearningPlan.topics && completeLearningPlan.topics.length > 0) {
+        for (let topicIndex = 0; topicIndex < values.topics.length && topicIndex < completeLearningPlan.topics.length; topicIndex++) {
+          const topic = values.topics[topicIndex];
+          const serverTopic = completeLearningPlan.topics[topicIndex];
+          
+          // Make sure we have a corresponding topic in the response
+          if (serverTopic && serverTopic.id) {
+            const topicId = serverTopic.id;
             
-            if (resource.resourceType === 'file') {
-              const fileKey = `${topicIndex}-${resourceIndex}`;
-              const file = fileResources[fileKey];
-              
-              if (file) {
-                // Create FormData and append the file
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('resourceId', resourceId);
+            if (topic.resources && topic.resources.length > 0) {
+              // Create resources manually if they don't exist in the response
+              if (!serverTopic.resources || serverTopic.resources.length < topic.resources.length) {
+                console.log(`Server topic ${topicIndex} is missing resources, will create them individually`);
                 
-                // Add to the list of upload promises
-                fileUploads.push(uploadResourceFile(newPlanId, topicId, formData));
+                // Create resources one by one for this topic
+                for (let resourceIndex = 0; resourceIndex < topic.resources.length; resourceIndex++) {
+                  const resource = topic.resources[resourceIndex];
+                  
+                  // Check if this resource needs to be created
+                  const serverResources = serverTopic.resources || [];
+                  if (resourceIndex >= serverResources.length) {
+                    try {
+                      // Create a resource directly
+                      const resourceData = {
+                        title: resource.title,
+                        url: resource.resourceType === 'url' ? resource.url : '',
+                        type: resource.type,
+                        description: resource.description || "",
+                        orderIndex: resourceIndex
+                      };
+                      
+                      console.log(`Creating resource for topic ${topicIndex}:`, resourceData);
+                      const createdResource = await addResource(newPlanId, topicId, resourceData);
+                      console.log(`Resource created:`, createdResource);
+                      
+                      // If this is a file resource, upload the file
+                      if (resource.resourceType === 'file') {
+                        const fileKey = `${topicIndex}-${resourceIndex}`;
+                        const file = fileResources[fileKey];
+                        
+                        if (file && createdResource.id) {
+                          // Create FormData and append the file
+                          const formData = new FormData();
+                          formData.append('file', file);
+                          formData.append('resourceId', createdResource.id);
+                          
+                          // Upload the file now
+                          console.log(`Uploading file for resource ${createdResource.id}`);
+                          await uploadResourceFile(newPlanId, topicId, formData, createdResource.id);
+                        }
+                      }
+                    } catch (err) {
+                      console.error(`Failed to create resource:`, err);
+                    }
+                  } else if (resource.resourceType === 'file') {
+                    // Handle file upload for existing resources
+                    const fileKey = `${topicIndex}-${resourceIndex}`;
+                    const file = fileResources[fileKey];
+                    const resourceId = serverResources[resourceIndex].id;
+                    
+                    if (file && resourceId) {
+                      // Create FormData and append the file
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      formData.append('resourceId', resourceId);
+                      
+                      // Add to the list of upload promises
+                      fileUploads.push(uploadResourceFile(newPlanId, topicId, formData, resourceId));
+                    }
+                  }
+                }
+              } else {
+                // Handle file uploads for resources that already exist
+                for (let resourceIndex = 0; resourceIndex < topic.resources.length && resourceIndex < serverTopic.resources.length; resourceIndex++) {
+                  const resource = topic.resources[resourceIndex];
+                  
+                  if (resource.resourceType === 'file') {
+                    const fileKey = `${topicIndex}-${resourceIndex}`;
+                    const file = fileResources[fileKey];
+                    const resourceId = serverTopic.resources[resourceIndex].id;
+                    
+                    if (file && resourceId) {
+                      // Create FormData and append the file
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      formData.append('resourceId', resourceId);
+                      
+                      // Add to the list of upload promises
+                      fileUploads.push(uploadResourceFile(newPlanId, topicId, formData, resourceId));
+                    }
+                  }
+                }
               }
             }
           }
@@ -184,6 +287,7 @@ const CreateLearningPlanPage = () => {
       
       // Execute all file uploads if there are any
       if (fileUploads.length > 0) {
+        console.log(`Uploading ${fileUploads.length} files...`);
         await Promise.all(fileUploads);
       }
       

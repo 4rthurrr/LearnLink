@@ -27,6 +27,7 @@ public class CommentService {
     private final PostRepository postRepository;
     private final UserService userService;
     private final NotificationService notificationService;
+    private final UserActivityService userActivityService;
     
     @Transactional
     public CommentResponse createComment(Long postId, CommentRequest commentRequest, String currentUserEmail) {
@@ -74,9 +75,11 @@ public class CommentService {
                         post.getId()
                 );
             }
-        }
-        
+        }        
         Comment savedComment = commentRepository.save(comment);
+        
+        // Record post comment activity
+        userActivityService.recordPostComment(currentUser, post, savedComment);
         
         return mapToCommentResponse(savedComment);
     }

@@ -60,15 +60,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse(false, "Something went wrong: " + ex.getMessage()));
-    }
-
-    // Add OAuth2 specific error handling
+    }    // Add OAuth2 specific error handling
     @ExceptionHandler(OAuth2AuthenticationException.class)
     public ResponseEntity<ApiResponse> handleOAuth2Exception(OAuth2AuthenticationException ex) {
-        log.error("OAuth2 authentication error", ex);
+        log.error("OAuth2 authentication error: {}", ex.getMessage(), ex);
         
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED)
                 .body(new ApiResponse(false, "OAuth2 authentication failed: " + ex.getMessage()));
+    }
+    
+    @ExceptionHandler(OAuth2AuthenticationProcessingException.class)
+    public ResponseEntity<ApiResponse> handleOAuth2ProcessingException(OAuth2AuthenticationProcessingException ex) {
+        log.error("OAuth2 processing error: {}", ex.getMessage(), ex);
+        
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse(false, ex.getMessage()));
     }
 }

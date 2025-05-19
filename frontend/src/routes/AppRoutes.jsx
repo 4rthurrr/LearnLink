@@ -12,9 +12,11 @@ import LearningPlanPage from '../pages/LearningPlanPage';
 import CreateLearningPlanPage from '../pages/CreateLearningPlanPage';
 import NotificationsPage from '../pages/NotificationsPage';
 import AnalyticsDashboardPage from '../pages/AnalyticsDashboardPage';
+import SearchPage from '../pages/SearchPage';
 import NotFoundPage from '../pages/NotFoundPage';
 import Layout from '../components/common/Layout';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
+import OAuth2RedirectHandler from '../components/auth/OAuth2RedirectHandler';
 
 const AppRoutes = () => {
   const { currentUser, loading } = useAuth();
@@ -27,6 +29,7 @@ const AppRoutes = () => {
     <Routes>
       <Route path="/login" element={currentUser ? <Navigate to="/" /> : <LoginPage />} />
       <Route path="/signup" element={currentUser ? <Navigate to="/" /> : <LoginPage signup={true} />} />
+      <Route path="/oauth2/redirect" element={<OAuth2RedirectHandler />} />
       
       <Route path="/" element={<Layout />}>
         <Route index element={<ProtectedRoute component={HomePage} />} />
@@ -40,6 +43,7 @@ const AppRoutes = () => {
         <Route path="create-learning-plan" element={<ProtectedRoute component={CreateLearningPlanPage} />} />
         <Route path="notifications" element={<ProtectedRoute component={NotificationsPage} />} />
         <Route path="analytics" element={<ProtectedRoute component={AnalyticsDashboardPage} />} />
+        <Route path="search" element={<ProtectedRoute component={SearchPage} />} />
       </Route>
       
       <Route path="*" element={<NotFoundPage />} />

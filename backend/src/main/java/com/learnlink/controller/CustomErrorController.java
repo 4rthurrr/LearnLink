@@ -1,6 +1,7 @@
 package com.learnlink.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Controller
 public class CustomErrorController implements ErrorController {
 
@@ -18,10 +20,16 @@ public class CustomErrorController implements ErrorController {
         Map<String, Object> errorDetails = new HashMap<>();
         HttpStatus status = getStatus(request);
         
+        // Extract more detailed error information
+        String message = (String) request.getAttribute("jakarta.servlet.error.message");
+        String errorPath = (String) request.getAttribute("jakarta.servlet.error.request_uri");
+        
         errorDetails.put("status", status.value());
-        errorDetails.put("error", status.getReasonPhrase());
-        errorDetails.put("message", "An error occurred. Please check server logs for details.");
-        errorDetails.put("path", request.getRequestURI());
+        errorDetails.put("error", status.getReasonPhrase());        errorDetails.put("message", message != null ? message : "An error occurred. Please check server logs for details.");
+        errorDetails.put("path", errorPath != null ? errorPath : request.getRequestURI());
+        
+        // Log the error for debugging
+        log.error("Error occurred: {} - {} for path: {}", status.value(), status.getReasonPhrase(), errorPath);
         
         return new ResponseEntity<>(errorDetails, status);
     }

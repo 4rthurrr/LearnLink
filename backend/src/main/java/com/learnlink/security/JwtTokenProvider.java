@@ -16,23 +16,42 @@ import java.util.Date;
 public class JwtTokenProvider {
 
     @Value("${app.jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${app.jwt.expiration}")
+    private String jwtSecret;    @Value("${app.jwt.expiration}")
     private int jwtExpirationInMs;
-
+    
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
-
-    public String generateToken(Authentication authentication) {
-        User userPrincipal = (User) authentication.getPrincipal();
+    
+    public String generateToken(Authentication authentication) {        String email;
+        
+        // Handle different types of authentication principals
+        Object principal = authentication.getPrincipal();
+        
+        try {
+            if (principal instanceof User) {
+                email = ((User) principal).getEmail();
+            } else if (principal instanceof UserPrincipal) {
+                email = ((UserPrincipal) principal).getEmail();
+            } else if (principal instanceof org.springframework.security.oauth2.core.user.DefaultOAuth2User) {
+                // Handle DefaultOAuth2User
+                org.springframework.security.oauth2.core.user.DefaultOAuth2User oAuth2User = 
+                    (org.springframework.security.oauth2.core.user.DefaultOAuth2User) principal;
+                email = (String) oAuth2User.getAttributes().get("email");
+            } else {
+                // If not a recognized principal type, try to get from getName()
+                email = authentication.getName();
+            }
+        } catch (Exception e) {
+            log.error("Error extracting email from principal", e);
+            email = authentication.getName();
+        }
 
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
         return Jwts.builder()
-                .setSubject(userPrincipal.getEmail())
+                .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

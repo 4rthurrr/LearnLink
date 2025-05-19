@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getLearningPlanById, updateTopicStatus, updateResourceStatus, uploadResourceFile } from '../api/learningPlanApi';
+import { getLearningPlanById, updateTopicStatus, updateResourceStatus } from '../api/learningPlanApi';
 import { formatDistanceToNow } from 'date-fns';
-import AddResourceForm from '../components/learningPlan/AddResourceForm';
 
 const LearningPlanPage = () => {
   const { planId } = useParams();
@@ -13,8 +12,6 @@ const LearningPlanPage = () => {
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [expandedTopics, setExpandedTopics] = useState({});
-  const [activeResourceForm, setActiveResourceForm] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState({ uploading: false, progress: 0, error: null });
 
   const fetchLearningPlan = useCallback(async () => {
     setLoading(true);
@@ -23,11 +20,22 @@ const LearningPlanPage = () => {
       console.log('Fetched learning plan:', JSON.stringify(data, null, 2));
       setLearningPlan(data);
       
-      // Add debugging for topics
+      // Add debugging for topics and resources
       if (!data.topics || data.topics.length === 0) {
         console.warn('Retrieved learning plan has no topics');
       } else {
         console.log(`Retrieved learning plan has ${data.topics.length} topics`);
+        
+        // Debug resources for each topic
+        data.topics.forEach((topic, index) => {
+          if (!topic.resources) {
+            console.warn(`Topic ${index + 1} (${topic.title}) has no resources array`);
+          } else if (topic.resources.length === 0) {
+            console.log(`Topic ${index + 1} (${topic.title}) has empty resources array`);
+          } else {
+            console.log(`Topic ${index + 1} (${topic.title}) has ${topic.resources.length} resources`, topic.resources);
+          }
+        });
       }
       
       // Initialize expanded state for topics
@@ -82,11 +90,6 @@ const LearningPlanPage = () => {
     }
   };
 
-  const handleResourceAdded = () => {
-    fetchLearningPlan();
-    setActiveResourceForm(null);
-  };
-
   const toggleTopicExpand = (topicId) => {
     setExpandedTopics(prev => ({
       ...prev,
@@ -100,31 +103,6 @@ const LearningPlanPage = () => {
       return formatDistanceToNow(new Date(dateString), { addSuffix: true });
     } catch (e) {
       return 'Invalid date';
-    }
-  };
-
-  const handleFileSelect = async (topicId, file, resourceId) => {
-    setUploadStatus({ uploading: true, progress: 0, error: null });
-    
-    try {
-      // Create FormData object
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      // Use the API function to upload the file, now passing the resourceId parameter
-      const response = await uploadResourceFile(planId, topicId, formData, resourceId);
-      
-      // Refresh the learning plan to get updated data
-      await fetchLearningPlan();
-      
-      // Reset upload status
-      setUploadStatus({ uploading: false, progress: 100, error: null });
-      
-      // Close the form
-      setActiveResourceForm(null);
-    } catch (err) {
-      console.error('Error uploading PDF file:', err);
-      setUploadStatus({ uploading: false, progress: 0, error: 'Failed to upload PDF file' });
     }
   };
 
@@ -361,63 +339,12 @@ const LearningPlanPage = () => {
                       </div>
                     </div>
                   )}
-                  <div className="px-4 py-3 sm:px-6 border-t border-gray-200">
-                    {activeResourceForm === topic.id ? (
-                      <div className="mt-2">
-                        <AddResourceForm 
-                          planId={planId} 
-                          topicId={topic.id} 
-                          onSuccess={handleResourceAdded} 
-                          onFileSelect={(file) => handleFileSelect(topic.id, file)}
-                        />
-                        <button
-                          onClick={() => setActiveResourceForm(null)}
-                          className="mt-2 text-sm text-gray-500 hover:text-gray-700"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setActiveResourceForm(topic.id)}
-                        className="text-sm text-indigo-600 hover:text-indigo-800"
-                      >
-                        + Add Resource
-                      </button>
-                    )}
-                  </div>
                 </div>
               )}
             </div>
           ))
         )}
       </div>
-
-      {/* Add debugging info when in development */}
-      {process.env.NODE_ENV === 'development' && learningPlan && (
-        <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-          <details>
-            <summary className="cursor-pointer text-sm font-medium text-gray-700">
-              Debug Information
-            </summary>
-            <div className="mt-2 p-2 bg-gray-200 rounded overflow-auto">
-              <pre className="text-xs">
-                {JSON.stringify({
-                  id: learningPlan.id,
-                  title: learningPlan.title,
-                  topicsCount: learningPlan.topics?.length || 0,
-                  hasTopics: Boolean(learningPlan.topics?.length),
-                  topics: learningPlan.topics?.map(t => ({ 
-                    id: t.id, 
-                    title: t.title,
-                    status: t.completionStatus
-                  }))
-                }, null, 2)}
-              </pre>
-            </div>
-          </details>
-        </div>
-      )}
     </div>
   );
 };

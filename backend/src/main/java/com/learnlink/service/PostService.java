@@ -9,13 +9,19 @@ import com.learnlink.model.User;
 import com.learnlink.repository.MediaRepository;
 import com.learnlink.repository.PostRepository;
 import com.learnlink.repository.LikeRepository;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import com.learnlink.repository.UserActivityRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -25,8 +31,8 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class PostService {
-
+@lombok.extern.slf4j.Slf4j
+public class PostService {   
     private final PostRepository postRepository;
     private final MediaRepository mediaRepository;
     private final FileStorageService fileStorageService;
@@ -34,6 +40,12 @@ public class PostService {
     private final LikeService likeService;
     private final CommentService commentService;
     private final LikeRepository likeRepository;
+    private final UserActivityRepository userActivityRepository;
+    private final UserActivityService userActivityService;
+    
+    // Inject EntityManager for direct database access when needed
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Transactional
     public PostResponse createPost(PostRequest postRequest, List<MultipartFile> files, String currentUserEmail) {
@@ -105,8 +117,12 @@ public class PostService {
     }
 
     public Page<PostResponse> searchPosts(String query, Pageable pageable, User currentUser) {
+        if (query == null || query.trim().isEmpty()) {
+            return Page.empty(pageable);
+        }
+        
         // Search posts by title or content containing the query string
-        Page<Post> posts = postRepository.findByTitleContainingOrContentContainingOrderByCreatedAtDesc(
+        Page<Post> posts = postRepository.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCaseOrderByCreatedAtDesc(
             query, query, pageable);
         
         return posts.map(this::mapToPostResponse);
@@ -158,9 +174,7 @@ public class PostService {
         
         Post updatedPost = postRepository.save(post);
         return mapToPostResponse(updatedPost);
-    }
-
-    @Transactional
+    }    @Transactional
     public void deletePost(Long postId, String currentUserEmail) {
         User currentUser = userService.getCurrentUser(currentUserEmail);
         
@@ -169,28 +183,91 @@ public class PostService {
         
         if (!post.getAuthor().getId().equals(currentUser.getId())) {
             throw new IllegalArgumentException("You are not authorized to delete this post");
-        }
-        
-        try {
-            // First, delete all likes associated with this post
-            likeRepository.deleteByPost(post);
+        }        try {            // First, delete all user activities related to this post
+            try {
+                log.info("Deleting user activities for post ID: {}", postId);
+                try {
+                    // First attempt: Use direct EntityManager for complete control
+                    Query query = entityManager.createNativeQuery("DELETE FROM user_activities WHERE post_id = :postId");
+                    query.setParameter("postId", postId);
+                    int deletedCount = query.executeUpdate();
+                    log.info("Successfully deleted {} user activities using EntityManager", deletedCount);
+                } catch (Exception directEx) {
+                    log.warn("Error using direct EntityManager to delete user activities: {}", directEx.getMessage());
+                    
+                    // Second attempt: Try native SQL query through repository
+                    userActivityRepository.deleteByPostIdNative(postId);
+                    log.info("Successfully deleted user activities using native SQL through repository");
+                }
+            } catch (Exception e) {
+                log.warn("Error using native SQL methods to delete user activities: {}", e.getMessage());
+                try {
+                    // Try the JPQL query as a fallback
+                    userActivityRepository.deleteByPostId(postId);
+                    log.info("Successfully deleted user activities using JPQL");
+                } catch (Exception e2) {
+                    log.warn("Error using JPQL to delete user activities: {}", e2.getMessage());
+                    try {
+                        // Fall back to the default Spring Data method
+                        userActivityRepository.deleteByPost(post);
+                        log.info("Successfully deleted user activities using Spring Data method");
+                    } catch (Exception ex) {
+                        log.error("All methods failed to delete user activities for post: {}", ex.getMessage(), ex);
+                        throw new RuntimeException("Error deleting user activities for post: " + ex.getMessage(), ex);
+                    }
+                }
+            }
+            
+            // Second, delete all likes associated with this post
+            try {
+                log.info("Deleting likes for post ID: {}", postId);
+                likeRepository.deleteByPost(post);
+            } catch (Exception e) {
+                log.error("Error deleting likes for post: {}", e.getMessage(), e);
+                throw new RuntimeException("Error deleting likes for post: " + e.getMessage(), e);
+            }
             
             // Then, delete all comments associated with this post
-            commentService.deleteAllCommentsByPost(post.getId());
+            try {
+                log.info("Deleting comments for post ID: {}", postId);
+                commentService.deleteAllCommentsByPost(post.getId());
+            } catch (Exception e) {
+                log.error("Error deleting comments for post: {}", e.getMessage(), e);
+                throw new RuntimeException("Error deleting comments for post: " + e.getMessage(), e);
+            }
+              // Delete associated media files
+            List<Media> mediaList = new ArrayList<>(post.getMedia());
+            for (Media media : mediaList) {
+                try {
+                    if (media != null && media.getFileName() != null) {
+                        log.info("Deleting media file: {} for post ID: {}", media.getFileName(), postId);
+                        fileStorageService.deleteFile(media.getFileName());
+                    }
+                } catch (Exception e) {
+                    // Log the error but continue with deletion
+                    log.warn("Error deleting media file: {} - {}", media.getFileName(), e.getMessage());
+                }
+            }
             
-            // Delete associated media files
-            for (Media media : post.getMedia()) {
-                fileStorageService.deleteFile(media.getFileName());
+            // Delete all media entries from the database
+            try {
+                log.info("Deleting all media entries for post ID: {}", postId);
+                mediaRepository.deleteByPost(post);
+            } catch (Exception e) {
+                log.error("Error deleting media entries for post: {}", e.getMessage(), e);
+                throw new RuntimeException("Error deleting media entries for post: " + e.getMessage(), e);
             }
             
             // Finally delete the post
+            log.info("Deleting post with ID: {}", postId);
             postRepository.delete(post);
+            log.info("Post with ID: {} successfully deleted", postId);
         } catch (Exception e) {
+            log.error("Failed to delete post: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to delete post: " + e.getMessage(), e);
         }
     }
-    
-    @Transactional
+      @Transactional
     public void deleteMedia(Long mediaId, String currentUserEmail) {
         User currentUser = userService.getCurrentUser(currentUserEmail);
         
@@ -201,10 +278,55 @@ public class PostService {
             throw new IllegalArgumentException("You are not authorized to delete this media");
         }
         
-        fileStorageService.deleteFile(media.getFileName());
-        media.getPost().getMedia().remove(media);
-        mediaRepository.delete(media);
+        try {
+            if (media.getFileName() != null) {
+                fileStorageService.deleteFile(media.getFileName());
+            }
+            
+            Post post = media.getPost();
+            if (post != null && post.getMedia() != null) {
+                post.getMedia().remove(media);
+            }
+            
+            mediaRepository.delete(media);
+            log.info("Media with ID: {} successfully deleted", mediaId);
+        } catch (Exception e) {
+            log.error("Failed to delete media: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to delete media: " + e.getMessage(), e);
+        }
     }
+      /**
+     * Updates post learning progress percentage when related learning plan progress changes
+     * @param learningPlanId The ID of the learning plan
+     * @param progressPercentage The new progress percentage
+     * @param userId The user ID who owns the learning plan
+     */
+  @Transactional
+  public void updatePostsWithLearningPlanProgress(Long learningPlanId, Integer progressPercentage, Long userId) {
+      if (userId == null) {
+          return; // No user, so no posts to update
+      }
+      
+      // Find posts by the user that might be related to this learning plan
+      List<Post> userPosts = postRepository.findByAuthorId(userId);
+      
+      if (userPosts != null && !userPosts.isEmpty()) {
+          boolean postsUpdated = false;
+          for (Post post : userPosts) {
+              // Update all posts by this user with the latest progress percentage
+              // This ensures even posts that were created before progress was made will show progress
+              post.setLearningProgressPercent(progressPercentage);
+              postsUpdated = true;
+          }
+          
+          // Only save if we actually updated any posts
+          if (postsUpdated) {
+              postRepository.saveAll(userPosts);
+              log.info("Updated learning progress to {}% in {} posts for user ID: {}", 
+                      progressPercentage, userPosts.size(), userId);
+          }
+      }
+  }
     
     private Media.MediaType determineMediaType(String contentType) {
         if (contentType == null) {

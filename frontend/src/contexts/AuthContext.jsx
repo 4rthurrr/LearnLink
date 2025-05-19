@@ -86,16 +86,18 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
-
   // Function to refresh user data from server
   const refreshCurrentUser = async () => {
     try {
       console.log('Refreshing current user data');
+      setLoading(true);
       await fetchCurrentUser();
+      setLoading(false);
       return true;
     } catch (error) {
       console.error('Error refreshing user data:', error);
-      return false;
+      setLoading(false);
+      throw error;
     }
   };
 

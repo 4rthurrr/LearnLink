@@ -86,18 +86,37 @@ public class LearningPlan {
         HISTORY,
         OTHER
     }
-    
-    public void calculateCompletionPercentage() {
+      public void calculateCompletionPercentage() {
         if (topics == null || topics.isEmpty()) {
             this.completionPercentage = 0;
             return;
         }
         
         int totalTopics = topics.size();
-        int completedTopics = (int) topics.stream()
-                .filter(topic -> topic.getCompletionStatus() == Topic.CompletionStatus.COMPLETED)
-                .count();
+        double completedWeight = 0;
         
-        this.completionPercentage = (completedTopics * 100) / totalTopics;
+        for (Topic topic : topics) {
+            if (topic.getCompletionStatus() == Topic.CompletionStatus.COMPLETED) {
+                completedWeight += 1.0;
+            } else if (topic.getCompletionStatus() == Topic.CompletionStatus.IN_PROGRESS) {
+                // If topic is in progress, calculate based on completed resources
+                List<Resource> resources = topic.getResources();
+                if (resources != null && !resources.isEmpty()) {
+                    int completedResources = 0;
+                    for (Resource resource : resources) {
+                        if (resource.getIsCompleted() != null && resource.getIsCompleted()) {
+                            completedResources++;
+                        }
+                    }
+                    // Weight partially completed topics as half of a completed topic
+                    // plus additional weight based on resource completion
+                    if (resources.size() > 0) {
+                        completedWeight += 0.5 * ((double) completedResources / resources.size());
+                    }
+                }
+            }
+        }
+        
+        this.completionPercentage = (int) Math.round((completedWeight / totalTopics) * 100);
     }
 }

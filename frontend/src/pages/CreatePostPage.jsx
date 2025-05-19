@@ -183,20 +183,34 @@ const CreatePostPage = () => {
       setIsSubmitting(false);
     }
   };
-
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">Create Post</h1>
+    <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+      <div className="bg-white shadow-card rounded-xl p-8 mb-6">
+        <div className="flex items-center mb-6">
+          <div className="h-10 w-10 rounded-full bg-primary-100 flex items-center justify-center mr-4">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary-600" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Create New Post</h1>
+        </div>
+        
+        <p className="text-gray-600 mb-6">Share your knowledge and learning journey with the LearnLink community.</p>
       
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-          <div className="flex">
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
+        {error && (
+          <div className="bg-red-50 border border-red-100 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       
       <Formik
         initialValues={{
@@ -208,60 +222,69 @@ const CreatePostPage = () => {
         validationSchema={validationSchema}
         onSubmit={handleSubmit}
       >
-        {({ isSubmitting: formSubmitting, values }) => (
-          <Form className="space-y-6 bg-white p-6 rounded-lg shadow">
-            <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+        {({ isSubmitting: formSubmitting, values }) => (          <Form className="space-y-6">
+            <div className="form-group">
+              <label htmlFor="title" className="modern-label text-base mb-2">Title</label>
               <Field
                 type="text"
                 name="title"
                 id="title"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Give your post a title"
+                className="modern-input py-3"
+                placeholder="Give your post a descriptive title"
               />
-              <ErrorMessage name="title" component="div" className="mt-1 text-red-600 text-sm" />
+              <ErrorMessage name="title" component="div" className="mt-1.5 text-red-600 text-sm" />
             </div>
 
-            <div>
-              <label htmlFor="content" className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+            <div className="form-group">
+              <label htmlFor="content" className="modern-label text-base mb-2">Content</label>
               <Field
                 as="textarea"
                 name="content"
                 id="content"
-                rows="5"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                placeholder="Share your learning journey..."
+                rows="7"
+                className="modern-input py-3 resize-y"
+                placeholder="Share your learning insights, experiences, or questions..."
               />
-              <ErrorMessage name="content" component="div" className="mt-1 text-red-600 text-sm" />
+              <ErrorMessage name="content" component="div" className="mt-1.5 text-red-600 text-sm" />
             </div>
 
-            <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-              <Field
-                as="select"
-                name="category"
-                id="category"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              >
-                <option value="">Select a category</option>
-                <option value="PROGRAMMING">Programming</option>
-                <option value="DESIGN">Design</option>
-                <option value="BUSINESS">Business</option>
-                <option value="LANGUAGE">Language</option>
-                <option value="MUSIC">Music</option>
-                <option value="ART">Art</option>
-                <option value="SCIENCE">Science</option>
-                <option value="MATH">Math</option>
-                <option value="HISTORY">History</option>
-                <option value="OTHER">Other</option>
-              </Field>
-              <ErrorMessage name="category" component="div" className="mt-1 text-red-600 text-sm" />
+            <div className="form-group">
+              <label htmlFor="category" className="modern-label text-base mb-2">Category</label>
+              <div className="relative">
+                <Field
+                  as="select"
+                  name="category"
+                  id="category"
+                  className="modern-input py-3 appearance-none pr-10"
+                >
+                  <option value="">Select a category</option>
+                  <option value="PROGRAMMING">Programming</option>
+                  <option value="DESIGN">Design</option>
+                  <option value="BUSINESS">Business</option>
+                  <option value="LANGUAGE">Language</option>
+                  <option value="MUSIC">Music</option>
+                  <option value="ART">Art</option>
+                  <option value="SCIENCE">Science</option>
+                  <option value="MATH">Math</option>
+                  <option value="HISTORY">History</option>
+                  <option value="OTHER">Other</option>
+                </Field>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+              <ErrorMessage name="category" component="div" className="mt-1.5 text-red-600 text-sm" />
             </div>
 
-            <div>
-              <label htmlFor="learningProgressPercent" className="block text-sm font-medium text-gray-700 mb-1">
-                Learning Progress: {values.learningProgressPercent}%
-              </label>
+            <div className="form-group bg-gray-50 p-4 rounded-lg">
+              <div className="flex items-center mb-2">
+                <label htmlFor="learningProgressPercent" className="modern-label text-base mb-0 mr-2">
+                  Learning Progress:
+                </label>
+                <span className="text-lg font-semibold text-primary-600">{values.learningProgressPercent}%</span>
+              </div>
               <Field
                 type="range"
                 name="learningProgressPercent"
@@ -269,27 +292,26 @@ const CreatePostPage = () => {
                 min="0"
                 max="100"
                 step="5"
-                className="w-full accent-indigo-600"
+                className="w-full accent-primary-500 h-2 rounded-lg appearance-none cursor-pointer"
               />
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>0% (Just started)</span>
+                <span>50% (Making progress)</span>
+                <span>100% (Mastered)</span>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Add Media (Images & Videos)
-              </label>
-              <div 
-                className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md"
+              </label>              <div 
+                className="mt-1 flex justify-center px-6 pt-6 pb-8 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
               >
-                <div className="space-y-1 text-center">
+                <div className="space-y-3 text-center">
                   <svg
-                    className="mx-auto h-12 w-12 text-gray-400"
+                    className="mx-auto h-14 w-14 text-gray-400"
                     stroke="currentColor"
                     fill="none"
                     viewBox="0 0 48 48"
@@ -329,64 +351,104 @@ const CreatePostPage = () => {
                   </p>
                 </div>
               </div>
-              
-              {previewUrls.length > 0 && (
-                <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {previewUrls.map((preview, index) => (
-                    <div key={index} className="relative">
-                      {preview.type === 'image' ? (
-                        <img 
-                          src={preview.url} 
-                          alt={`Preview ${index}`} 
-                          className="h-32 object-cover w-full rounded-lg" 
-                        />
-                      ) : (
-                        <div className="relative">
-                          <video 
-                            className="h-32 object-cover w-full rounded-lg" 
-                            controls
-                          >
-                            <source src={preview.url} type={files[index].type} />
-                            Your browser does not support the video tag.
-                          </video>
-                          {videoErrors[index] && (
-                            <div className="absolute bottom-0 left-0 right-0 bg-red-500 text-white text-xs p-1">
-                              {videoErrors[index]}
+                {previewUrls.length > 0 && (
+                <div className="mt-5 border border-gray-200 rounded-xl p-4 bg-white">
+                  <div className="flex items-center mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                    </svg>
+                    <h3 className="text-sm font-medium text-gray-700">Attached Media ({previewUrls.length})</h3>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {previewUrls.map((preview, index) => (
+                      <div key={index} className="relative group overflow-hidden rounded-lg shadow-sm border border-gray-200">
+                        {preview.type === 'image' ? (
+                          <div className="aspect-w-16 aspect-h-9 bg-gray-100">
+                            <img 
+                              src={preview.url} 
+                              alt={`Preview ${index}`} 
+                              className="h-full w-full object-cover transition-transform group-hover:scale-105" 
+                            />
+                          </div>
+                        ) : (
+                          <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                            <video 
+                              className="h-full w-full object-cover" 
+                              controls
+                            >
+                              <source src={preview.url} type={files[index].type} />
+                              Your browser does not support the video tag.
+                            </video>
+                            <div className="absolute top-2 left-2 bg-black bg-opacity-60 text-white text-xs px-1.5 py-0.5 rounded">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 inline mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
+                              Video
                             </div>
-                          )}
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeFile(index)}
-                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 shadow-sm hover:bg-red-600"
-                        aria-label="Remove"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+                            {videoErrors[index] && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-red-500 text-white text-xs py-1 px-2">
+                                {videoErrors[index]}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="absolute top-2 right-2 bg-red-100 hover:bg-red-200 text-red-600 rounded-full p-1.5 shadow-sm transition-colors"
+                          aria-label="Remove"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+            </div>            <div className="flex flex-col sm:flex-row sm:justify-between gap-4 pt-4 border-t border-gray-200 mt-4">
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="modern-button-outline flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                </svg>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || formSubmitting || Object.keys(videoErrors).length > 0}
+                className="modern-button-primary flex items-center justify-center disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:transform-none px-8"
+              >
+                {isSubmitting || formSubmitting ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Publishing...
+                  </>
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Publish Post
+                  </>
+                )}
+              </button>
             </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || formSubmitting || Object.keys(videoErrors).length > 0}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400"
-            >
-              {isSubmitting || formSubmitting ? 'Publishing...' : 'Publish Post'}
-            </button>
             {Object.keys(videoErrors).length > 0 && (
               <p className="text-red-500 text-sm text-center">
                 Please fix the video errors before publishing
               </p>
-            )}
-          </Form>
+            )}          </Form>
         )}
       </Formik>
+      </div>
     </div>
   );
 };
