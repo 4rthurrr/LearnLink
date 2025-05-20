@@ -1,0 +1,62 @@
+﻿{
+    "version":  "1.0.83",
+    "buildTimestamp":  "2025-04-29T18:12:56.8720000",
+    "systemData":  [
+                       {
+                           "id":  "20250511133731-411d9b81",
+                           "date":  "2025-04-28",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511133732-acd2c114",
+                           "date":  "2025-04-17",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511133732-55a77f8d",
+                           "date":  "2025-05-01",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511134917-37f60643",
+                           "date":  "2025-04-24",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511134917-83a1aa77",
+                           "date":  "2025-05-10",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511134918-799d242a",
+                           "date":  "2025-04-15",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511135230-d2aed71b",
+                           "date":  "2025-05-04",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511135231-c4f572b9",
+                           "date":  "2025-05-10",
+                           "type":  "system_update"
+                       },
+                       {
+                           "id":  "20250511135232-dd1f85e4",
+                           "date":  "2025-04-29",
+                           "type":  "system_update"
+                       }
+                   ],
+    "appConfig":  {
+                      "features":  {
+                                       "analytics":  true,
+                                       "notifications":  false,
+                                       "recommendations":  true,
+                                       "tutoring":  false,
+                                       "feedback":  true,
+                                       "messaging":  false,
+                                       "darkMode":  true
+                                   }
+                  }
+}
