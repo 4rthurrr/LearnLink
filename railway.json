@@ -3,10 +3,9 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "./backend/Dockerfile"
-  },
-  "deploy": {
+  },  "deploy": {
     "numReplicas": 1,
-    "healthcheckPath": "/api/auth/me",
+    "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10
