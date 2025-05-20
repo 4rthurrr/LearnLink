@@ -15,12 +15,8 @@ WORKDIR /app
 # Copy the jar file from the build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Copy the database variable extraction script
-COPY --from=build /app/extract-db-vars.sh /app/extract-db-vars.sh
-RUN chmod +x /app/extract-db-vars.sh
-
 # Expose the port
 EXPOSE 8080
 
-# Run the application with the script that extracts database variables
-ENTRYPOINT ["/app/extract-db-vars.sh", "java", "-jar", "app.jar", "--spring.profiles.active=prod"]
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]
