@@ -38,6 +38,7 @@ pom.xml.next
 # Application properties containing sensitive data
 backend/src/main/resources/application.properties
 backend/src/main/resources/application-prod.properties
+backend/src/main/resources/application-prod-local.properties
 backend/src/main/resources/application-dev.properties
 backend/src/main/resources/application.yml
 backend/src/main/resources/application-*.properties.bak
@@ -48,44 +49,80 @@ backend/src/main/resources/application-*.properties.backup
 backend/uploads/
 
 # Frontend - React
-
-# Dependencies
 frontend/node_modules/
-frontend/.pnp
-frontend/.pnp.js
-
-# Testing
-frontend/coverage/
-
-# Production build
 frontend/build/
-frontend/dist/
-
-# Environment variables
 frontend/.env
 frontend/.env.local
 frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
-.env
-
-# Package manager logs
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
+frontend/.cache/
+frontend/.pnp/
+frontend/.pnp.js
+frontend/coverage/
+
+# IDE specific files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+.factorypath
+
+# Temporary directories
+.temp/
+.tmp/
+tmp/
+
+# Docker related files
+docker-compose.override.yml
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Deployment scripts and temporary files
+*.bat
+*.sh
+*.ps1
+*.tmp
+*.temp
+
+# Exception for important scripts
+!startup.sh
+!railway-build.sh
+!verify-env.sh
+!set-railway-jwt-secret.sh
+!set-railway-jwt-secret.ps1
+!test-docker-local.sh
+!test-docker-local.bat
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Package manager logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Project specific deployment files
-RAILWAY_DEPLOYMENT.md
-UPDATED_RAILWAY_DEPLOYMENT.md
-VERCEL_FRONTEND_DEPLOYMENT.md
-verify-env.sh
-railway-build.sh
-set-jwt-secret.sh
-railway.json
-vercel.json
+# Project specific documentation and configuration
+# (We're keeping these in version control as they're important)
+# RAILWAY_DEPLOYMENT.md
+# UPDATED_RAILWAY_DEPLOYMENT.md
+# RAILWAY_DEPLOYMENT_UPDATED_JWT.md
+# VERCEL_FRONTEND_DEPLOYMENT.md
+# railway.json
+# vercel.json
 
 # Test and local setup scripts
 clean-history.ps1
