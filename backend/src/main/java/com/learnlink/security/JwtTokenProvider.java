@@ -13,10 +13,10 @@ import java.util.Date;
 
 @Component
 @Slf4j
-public class JwtTokenProvider {
-
-    @Value("${app.jwt.secret}")
-    private String jwtSecret;    @Value("${app.jwt.expiration}")
+public class JwtTokenProvider {    @Value("${app.jwt.secret}")
+    private String jwtSecret;
+    
+    @Value("${app.jwt.expiration}")
     private int jwtExpirationInMs;
     
     private Key getSigningKey() {

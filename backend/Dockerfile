@@ -21,5 +21,8 @@ COPY --from=build /app/target/*.jar app.jar
 # Expose the port
 EXPOSE 8080
 
-# Run the application directly
-ENTRYPOINT ["java", "-jar", "app.jar", "--spring.profiles.active=prod"]
+# Run the application with environment variables
+ENTRYPOINT ["sh", "-c", "java -jar app.jar --spring.profiles.active=prod \
+--app.jwt.secret=\"${JWT_SECRET}\" \
+--app.oauth2.redirectUri=\"${APP_OAUTH2_REDIRECT_URI:-https://learn-link.vercel.app/oauth2/redirect}\" \
+--spring.security.oauth2.client.registration.google.redirect-uri=\"${OAUTH2_GOOGLE_REDIRECT_URI:-https://learnlink-production.up.railway.app/api/auth/oauth2/callback/google}\""]

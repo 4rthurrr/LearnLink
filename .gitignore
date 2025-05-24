@@ -17,11 +17,31 @@ log/
 *.tar.gz
 *.rar
 
+# Backup files
+*.bak
+*~
+*.orig
+*.rej
+*.swp
+*.save
+*.backup
+*.old
+*.new
+
+# Maven files with backup extensions
+pom.xml.bak
+pom.xml.fixed
+pom.xml.versionsBackup
+pom.xml.releaseBackup
+pom.xml.next
+
 # Application properties containing sensitive data
 backend/src/main/resources/application.properties
 backend/src/main/resources/application-prod.properties
 backend/src/main/resources/application-dev.properties
 backend/src/main/resources/application.yml
+backend/src/main/resources/application-*.properties.bak
+backend/src/main/resources/application-*.properties.backup
 
 # Spring Boot upload directory
 /uploads/
@@ -47,11 +67,38 @@ frontend/.env.local
 frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
+.env
 
 # Package manager logs
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Project specific deployment files
+RAILWAY_DEPLOYMENT.md
+UPDATED_RAILWAY_DEPLOYMENT.md
+VERCEL_FRONTEND_DEPLOYMENT.md
+verify-env.sh
+railway-build.sh
+set-jwt-secret.sh
+railway.json
+vercel.json
+
+# Test and local setup scripts
+clean-history.ps1
+clean-with-bfg.ps1
+test-docker-local.bat
+test-docker-local.sh
+
+# Media/Upload files
+backend/uploads/**/*.jpg
+backend/uploads/**/*.png
+backend/uploads/**/*.pdf
+backend/uploads/**/*.mp4
+backend/uploads/**/*.avif
 
 # IDE - IntelliJ IDEA
 .idea/
@@ -82,3 +129,37 @@ HELP.md
 *~
 .#*
 .*.md.html
+
+# Build and deployment specific files
+clean-history.ps1
+clean-with-bfg.ps1
+test-docker-local.bat
+test-docker-local.sh
+pom.xml.bak
+pom.xml.fixed
+*.code-workspace
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Maven Wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Gradle
+.gradle/
+build/
+
+# Local environment configurations
+backend/src/main/resources/bootstrap.properties
+backend/src/main/resources/bootstrap.yml
+backend/src/main/resources/bootstrap-*.properties
+backend/src/main/resources/bootstrap-*.yml
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.h2.db

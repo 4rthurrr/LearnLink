@@ -7,7 +7,7 @@ docker build -t learnlink-backend .
 
 echo Running LearnLink Docker container with test environment variables...
 docker run -d --name learnlink-test ^
-  -e JWT_SECRET=testsecret123 ^
+  -e JWT_SECRET=verySecretKeyThatIsLongEnoughForHS256AlgorithmAtLeast32Bytes ^
   -e MYSQLHOST=host.docker.internal ^
   -e MYSQLPORT=3306 ^
   -e MYSQLDATABASE=learnlink ^

@@ -18,6 +18,13 @@ else
   echo "Constructed URL: ${CONSTRUCTED_URL}"
 fi
 
+# Check JWT Secret and OAuth2 configuration
+echo "\nJWT and OAuth2 Configuration:"
+echo "JWT_SECRET: ${JWT_SECRET:0:3}... (partial for security)"
+echo "APP_OAUTH2_REDIRECT_URI: ${APP_OAUTH2_REDIRECT_URI:-NOT SET (will use default)}"
+echo "GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-NOT SET}"
+echo "GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:0:3}... (partial for security)"
+
 # Print Java version
 echo "\nJava Version:"
 java -version
@@ -26,3 +33,4 @@ echo "\nIf you're experiencing connection issues:"
 echo "1. Verify that variables don't contain placeholder values like \${{VARIABLE}}"
 echo "2. Use actual hostnames instead of placeholders"
 echo "3. Check your Railway MySQL service status"
+echo "4. Ensure JWT_SECRET is properly set for authentication"

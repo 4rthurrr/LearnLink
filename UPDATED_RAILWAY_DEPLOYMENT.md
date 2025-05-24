@@ -26,7 +26,9 @@ We simplified the Docker configuration by removing the separate startup script a
    Make sure the following environment variables are configured in your Railway project:
    
    - `MYSQLHOST`, `MYSQLPORT`, `MYSQLDATABASE`, `MYSQLUSER`, `MYSQL_ROOT_PASSWORD` (these are automatically set by Railway if you provision a MySQL database)
-   - `JWT_SECRET` - Your JWT secret key
+   - `JWT_SECRET` - Your JWT secret key (REQUIRED - application will fail to start without this)
+     - Must be at least 32 characters long for HS256 algorithm
+     - Example: `JWT_SECRET=verySecretKeyThatIsLongEnoughForHS256AlgorithmAtLeast32Bytes`
    - `GOOGLE_CLIENT_ID` - Your Google OAuth Client ID
    - `GOOGLE_CLIENT_SECRET` - Your Google OAuth Client Secret
    - `APP_OAUTH2_REDIRECT_URI` - Set to your frontend OAuth callback URL (e.g., https://learn-link.vercel.app/oauth2/redirect)
